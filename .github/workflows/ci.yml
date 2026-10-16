@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run Ruff linter
+        run: uv run ruff check src tests
+
+      - name: Run Ruff formatter check
+        run: uv run ruff format --check src tests
+
+      - name: Run Mypy type checker
+        run: uv run mypy src
+
+  frontend:
+    name: TypeScript Web Component Pipeline
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run frontend unit tests
+        run: npm run test
+
+      - name: Build Web Component bundle
+        run: npm run build
+
+  test:
+    name: Test (Python ${{ matrix.python-version }}, Django ${{ matrix.django-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        django-version: ["4.2", "5.0", "5.1", "5.2"]
+        include:
+          - python-version: "3.12"
+            django-version: "main"
+            experimental: true
+          - python-version: "3.13"
+            django-version: "main"
+            experimental: true
+    continue-on-error: ${{ matrix.experimental == true }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev --python ${{ matrix.python-version }}
+          if [ "${{ matrix.django-version }}" = "main" ]; then
+            uv pip install --prerelease=allow "https://github.com/django/django/archive/main.tar.gz"
+          else
+            uv pip install "django~=${{ matrix.django-version }}.0"
+          fi
+
+      - name: Run pytest with coverage
+        run: |
+          uv run pytest --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12' && matrix.django-version == '5.1'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Build distribution artifacts
+        if: matrix.python-version == '3.12' && matrix.django-version == '5.1'
+        run: uv build

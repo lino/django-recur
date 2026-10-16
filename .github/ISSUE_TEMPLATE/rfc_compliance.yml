@@ -1,0 +1,30 @@
+name: RFC 8984 / RFC 5545 Compliance Issue
+description: Report a specification discrepancy or mapping edge case for RFC 8984 (JSCalendar) or RFC 5545 (iCalendar).
+title: "[RFC Compliance]: "
+labels: ["rfc-compliance"]
+body:
+  - type: dropdown
+    id: spec
+    attributes:
+      label: Specification
+      options:
+        - "RFC 8984 (JSCalendar)"
+        - "RFC 5545 (iCalendar)"
+        - "RFC 7529 (Non-Gregorian RSCALE / SKIP)"
+        - "RFC 9553 / Bidirectional Mapping (JSCalendar <-> iCalendar)"
+    validations:
+      required: true
+  - type: input
+    id: section
+    attributes:
+      label: RFC Section Reference
+      placeholder: "e.g., RFC 8984 Section 4.3.3"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Discrepancy & Test Case
+      description: Provide the input rule/JSON, what the RFC specifies, and what django-recurrence-jscalendar currently produces.
+    validations:
+      required: true

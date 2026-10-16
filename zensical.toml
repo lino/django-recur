@@ -1,0 +1,52 @@
+[project]
+site_name = "django-recurrence-jscalendar"
+site_description = "Modern reimplementation of django-recurrence powered by RFC 8984 (JSCalendar), with full RFC 5545 interoperability, drop-in compatibility, and a TypeScript Web Component widget."
+site_author = "Lino"
+site_url = "https://lino.github.io/django-recurrence-jscalendar/"
+repo_url = "https://github.com/lino/django-recurrence-jscalendar"
+repo_name = "lino/django-recurrence-jscalendar"
+copyright = "Copyright &copy; 2026 Lino & Contributors"
+nav = [
+    { "Home" = "index.md" },
+    { "Getting Started" = [
+        { "Installation" = "installation.md" },
+        { "Quickstart" = "getting-started.md" },
+    ] },
+    { "RFC 8984 & RFC 5545 Matrix" = "rfc-compliance-matrix.md" },
+    { "Migration Guide" = "migration-guide.md" },
+    { "TypeScript Web Component Widget" = "widget.md" },
+    { "API Reference" = [
+        { "dj_recurrence (Modern API)" = "api/dj-recurrence.md" },
+        { "recurrence (Compatibility API)" = "api/recurrence.md" },
+    ] },
+    { "Contributing" = "contributing.md" },
+    { "Changelog" = "changelog.md" },
+]
+
+[project.theme]
+variant = "modern"
+language = "en"
+features = [
+    "navigation.instant",
+    "navigation.tracking",
+    "navigation.tabs",
+    "navigation.sections",
+    "navigation.expand",
+    "navigation.top",
+    "search.suggest",
+    "search.highlight",
+    "content.code.copy",
+    "content.tabs.link",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "blue"
+toggle = { icon = "lucide/sun", name = "Switch to dark mode" }
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "indigo"
+accent = "blue"
+toggle = { icon = "lucide/moon", name = "Switch to light mode" }

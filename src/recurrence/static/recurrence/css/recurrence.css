@@ -1,0 +1,65 @@
+/* django-recurrence-jscalendar CSS
+ * Supports both the modern <dj-recurrence-widget> Custom Element (via Shadow DOM
+ * and light-DOM tokens) and legacy div.recurrence-widget selectors.
+ */
+
+dj-recurrence-widget {
+    display: block;
+    max-width: 100%;
+    --dj-recurrence-bg: var(--body-bg, #ffffff);
+    --dj-recurrence-fg: var(--body-fg, #1f2937);
+    --dj-recurrence-border: var(--border-color, #d1d5db);
+    --dj-recurrence-primary: var(--primary, #2563eb);
+    --dj-recurrence-danger: var(--delete-button-bg, #dc2626);
+    --dj-recurrence-muted: var(--body-quiet-color, #6b7280);
+    --dj-recurrence-card-bg: var(--darkened-bg, #f9fafb);
+}
+
+@media (prefers-color-scheme: dark) {
+    dj-recurrence-widget {
+        --dj-recurrence-bg: var(--body-bg, #111827);
+        --dj-recurrence-fg: var(--body-fg, #f9fafb);
+        --dj-recurrence-border: var(--border-color, #374151);
+        --dj-recurrence-primary: var(--primary, #3b82f6);
+        --dj-recurrence-danger: var(--delete-button-bg, #ef4444);
+        --dj-recurrence-muted: var(--body-quiet-color, #9ca3af);
+        --dj-recurrence-card-bg: var(--darkened-bg, #1f2937);
+    }
+}
+
+div.recurrence-widget {
+    float: left;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 6px;
+}
+
+div.recurrence-widget div.panel {
+    border-bottom: 1px solid var(--border-color, #ddd);
+}
+
+div.recurrence-widget select,
+div.recurrence-widget input {
+    margin: 0 .5em;
+    width: auto;
+}
+
+div.recurrence-widget a.recurrence-label {
+    display: block;
+    cursor: pointer;
+    padding: .5em .75em;
+    font-weight: bold;
+    white-space: nowrap;
+    padding-right: 3em;
+    color: var(--body-fg, black);
+}
+
+@media (prefers-color-scheme: dark) {
+    div.recurrence-widget a.recurrence-label {
+        color: white;
+    }
+}
+
+.recurrence-widget.hidden,
+div.recurrence-widget .hidden {
+    display: none;
+}

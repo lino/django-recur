@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+.pdm-build/
+.pdm-python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+test_db.sqlite
+tests/testmedia/
+
+# Documentation build output
+site/
+.cache/
+docs/_build/
+
+# Frontend dependencies
+frontend/node_modules/
+node_modules/
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
