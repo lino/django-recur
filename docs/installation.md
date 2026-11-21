@@ -4,6 +4,7 @@
 
 **What you will learn:**
 
+- Which Python and Django version combinations are supported and tested.
 - How to install `django-recur` with `uv` or `pip`.
 - How to register both namespaces in Django's `INSTALLED_APPS`.
 - Which optional Django settings control storage format and timezone handling.
@@ -12,9 +13,28 @@ Install `django-recur` to add RFC 8984 (JSCalendar) recurrence fields and the `<
 
 ## Prerequisites
 
-- **Python**: 3.10 or later.
-- **Django**: 6.1 on Python 3.12+, or 5.2 LTS on Python 3.10–3.11 (Django 5.0 and 5.1 are also supported).
+- **Python**: 3.10 through 3.14.
+- **Django**: 4.2 LTS through 6.1 (matching Django's supported Python versions below).
 - **python-dateutil**: 2.8.2 or later (installed automatically).
+
+## Compatibility Matrix
+
+`django-recur` follows Django's official Python version support policy. Every `Yes` cell below is continuously tested in CI:
+
+| Django Version | Python 3.10 | Python 3.11 | Python 3.12 | Python 3.13 | Python 3.14 |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| **4.2 (LTS)** | Yes | Yes | Yes | — | — |
+| **5.0** | Yes | Yes | Yes | — | — |
+| **5.1** | Yes | Yes | Yes | Yes | — |
+| **5.2 (LTS)** | Yes | Yes | Yes | Yes | Yes |
+| **6.0** | — | — | Yes | Yes | Yes |
+| **6.1** | — | — | Yes | Yes | Yes |
+| **`main`** | — | — | Experimental | Experimental | — |
+
+!!! note "Matrix legend"
+    - **Yes**: Supported and verified on every CI run.
+    - **Experimental**: Tested against Django's `main` branch on a best-effort basis (non-blocking in CI).
+    - **—**: Unsupported by upstream Django or not tested in CI.
 
 ## Steps
 

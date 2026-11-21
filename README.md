@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/lino/django-recur/actions/workflows/ci.yml/badge.svg)](https://github.com/lino/django-recur/actions/workflows/ci.yml)
 [![Documentation](https://github.com/lino/django-recur/actions/workflows/docs.yml/badge.svg)](https://lino.github.io/django-recur/)
-[![PyPI](https://img.shields.io/pypi/v/django-recur.svg)](https://pypi.org/project/django-recur/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/django-recur.svg)](https://pypi.org/project/django-recur/)
-[![Django Versions](https://img.shields.io/pypi/djversions/django-recur.svg)](https://pypi.org/project/django-recur/)
+[![PyPI](https://img.shields.io/pypi/v/django-recur)](https://pypi.org/project/django-recur/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/django-recur)](https://pypi.org/project/django-recur/)
+[![Django Versions](https://img.shields.io/pypi/frameworkversions/django/django-recur)](https://pypi.org/project/django-recur/)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://github.com/lino/django-recur/blob/main/LICENSE)
 
 **`django-recur`** is the modern reimplementation of [`jazzband/django-recurrence`](https://github.com/jazzband/django-recurrence), built on **[RFC 8984 (JSCalendar)](https://datatracker.ietf.org/doc/html/rfc8984)** and **[RFC 5545 (iCalendar)](https://datatracker.ietf.org/doc/html/rfc5545)** while providing a **100% drop-in compatibility layer** for existing `django-recurrence` projects.

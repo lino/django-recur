@@ -53,7 +53,7 @@ flowchart TB
 
 ## Where to Go Next
 
-- **[Installation](installation.md)**: Install `django-recur` with `uv` or `pip` and configure `INSTALLED_APPS`.
+- **[Installation](installation.md)**: Check the [Python & Django compatibility matrix](installation.md#compatibility-matrix), install `django-recur` with `uv` or `pip`, and configure `INSTALLED_APPS`.
 - **[Quickstart](getting-started.md)**: Build schedules with either `django_recur` or the drop-in `recurrence` API.
 - **[RFC 8984 & RFC 5545 Matrix](rfc-compliance-matrix.md)**: Inspect feature coverage and auto-mapping rules.
 - **[Migration Guide](migration-guide.md)**: Upgrade existing `django-recurrence` projects in three stages.
