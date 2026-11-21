@@ -13,7 +13,7 @@ from django.contrib.staticfiles.storage import staticfiles_storage
 from django.utils.safestring import SafeString, mark_safe
 from django.views import i18n
 
-from dj_recurrence.rfc8984 import JSCalendarRecurrence, RecurrenceRule
+from django_recur.rfc8984 import JSCalendarRecurrence, RecurrenceRule
 
 _recurrence_javascript_catalog_url: str | None = None
 
@@ -60,7 +60,7 @@ def find_recurrence_i18n_js_catalog() -> str | None:
 
 class RecurrenceWidget(forms.Textarea):
     """
-    Textarea widget progressively enhanced by the ``<dj-recurrence-widget>``
+    Textarea widget progressively enhanced by the ``<django-recur-widget>``
     TypeScript Web Component.
     """
 
@@ -74,7 +74,7 @@ class RecurrenceWidget(forms.Textarea):
         self.output_format = output_format
         defaults: dict[str, Any] = {
             "class": "recurrence-widget",
-            "data-dj-recurrence-widget": "true",
+            "data-django-recur-widget": "true",
             "data-output-format": output_format,
         }
         if kwargs:
@@ -111,9 +111,9 @@ class RecurrenceWidget(forms.Textarea):
     ) -> SafeString:
         textarea_html = super().render(name, value, attrs=attrs, renderer=renderer)
         return mark_safe(
-            f'<dj-recurrence-widget data-output-format="{self.output_format}">'
+            f'<django-recur-widget data-output-format="{self.output_format}">'
             f"{textarea_html}"
-            f"</dj-recurrence-widget>"
+            f"</django-recur-widget>"
         )
 
     def get_media(self) -> forms.Media:

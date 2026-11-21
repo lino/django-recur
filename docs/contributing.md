@@ -1,4 +1,4 @@
-# Contributing to `django-recurrence-jscalendar`
+# Contributing to `django-recur`
 
 Contributions are welcome! Please read this guide to set up your local development environment and run the test suite.
 
@@ -7,8 +7,8 @@ Contributions are welcome! Please read this guide to set up your local developme
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/lino/django-recurrence-jscalendar.git
-   cd django-recurrence-jscalendar
+   git clone https://github.com/lino/django-recur.git
+   cd django-recur
    ```
 
 2. Install Python dependencies using [`uv`](https://docs.astral.sh/uv/):
@@ -17,7 +17,7 @@ Contributions are welcome! Please read this guide to set up your local developme
    uv sync --all-extras --dev
    ```
 
-3. Install frontend dependencies for the `<dj-recurrence-widget>` TypeScript pipeline:
+3. Install frontend dependencies for the `<django-recur-widget>` TypeScript pipeline:
 
    ```bash
    cd frontend

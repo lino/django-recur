@@ -1,18 +1,21 @@
 {
-  "name": "@lino/django-recurrence-jscalendar-widget",
+  "name": "@lino/django-recur-widget",
   "version": "2.0.0",
   "private": true,
-  "description": "Modern TypeScript Web Component (<dj-recurrence-widget>) for django-recurrence-jscalendar (RFC 8984 & RFC 5545)",
+  "description": "Modern TypeScript Web Component (<django-recur-widget>) for django-recur (RFC 8984 & RFC 5545)",
   "type": "module",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {
-    "jsdom": "^25.0.1",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.3",
-    "vitest": "^2.1.8"
+    "jsdom": "^31.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

@@ -9,7 +9,7 @@ from django.utils import dateformat
 from django.utils.translation import gettext as _
 from django.utils.translation import pgettext as _p
 
-from dj_recurrence.rfc8984 import DayOfWeek, Frequency, NDay, RecurrenceRule
+from django_recur.rfc8984 import DayOfWeek, Frequency, NDay, RecurrenceRule
 
 
 def rule_to_text(rule: RecurrenceRule | Any, short: bool = False) -> str:

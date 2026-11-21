@@ -1,5 +1,5 @@
 /**
- * <dj-recurrence-widget> Custom Element (Web Component) for Django forms & Admin.
+ * <django-recur-widget> Custom Element (Web Component) for Django forms & Admin.
  *
  * Progressively enhances a <textarea class="recurrence-widget"> element, manages
  * state internally as an RFC 8984 JSCalendar schedule, and synchronizes either
@@ -22,6 +22,7 @@ import {
 import type {
   DayOfWeekName,
   FrequencyName,
+  JSCalendarOverridePatch,
   JSCalendarRecurrenceRule,
   JSCalendarSchedule,
   OutputFormat,
@@ -37,6 +38,7 @@ interface RulePanelEntry {
 interface DatePanelEntry {
   isoKey: string;
   excluded: boolean;
+  patch: JSCalendarOverridePatch;
   expanded: boolean;
 }
 
@@ -76,7 +78,7 @@ const POSITIONS: readonly { value: number; label: string }[] = [
   { value: -3, label: "third last" },
 ];
 
-export class DjRecurrenceWidget extends HTMLElement {
+export class DjangoRecurWidget extends HTMLElement {
   private textarea: HTMLTextAreaElement | null = null;
   private uiRoot: HTMLDivElement | null = null;
   private schedule: JSCalendarSchedule = {
@@ -136,13 +138,16 @@ export class DjRecurrenceWidget extends HTMLElement {
       this.outputFormat = "rfc5545";
     }
 
+    try {
+      this.loadFromValue(this.textarea.value);
+    } catch {
+      return;
+    }
     this.textarea.classList.add("recurrence-widget", "hidden");
     this.textarea.style.display = "none";
 
-    this.loadFromValue(this.textarea.value);
-
     this.uiRoot = document.createElement("div");
-    this.uiRoot.className = "dj-recurrence-container recurrence-widget";
+    this.uiRoot.className = "django-recur-container recurrence-widget";
     this.insertBefore(this.uiRoot, this.textarea);
 
     this.renderUI();
@@ -162,6 +167,7 @@ export class DjRecurrenceWidget extends HTMLElement {
       this.datePanels.push({
         isoKey,
         excluded: Boolean(patch.excluded),
+        patch,
         expanded: false,
       });
     }
@@ -184,9 +190,13 @@ export class DjRecurrenceWidget extends HTMLElement {
     this.schedule.excludedRecurrenceRules = this.rulePanels
       .filter((p) => p.excluded)
       .map((p) => p.rule);
-    const overrides: Record<string, { excluded?: boolean }> = {};
+    const overrides: Record<string, JSCalendarOverridePatch> = {};
     for (const dp of this.datePanels) {
-      overrides[dp.isoKey] = dp.excluded ? { excluded: true } : {};
+      if (dp.excluded === Boolean(dp.patch.excluded)) {
+        overrides[dp.isoKey] = dp.patch;
+      } else {
+        overrides[dp.isoKey] = dp.excluded ? { excluded: true } : {};
+      }
     }
     this.schedule.recurrenceOverrides = overrides;
   }
@@ -199,6 +209,7 @@ export class DjRecurrenceWidget extends HTMLElement {
       const hasContent =
         Boolean(jscal.start) ||
         Boolean(jscal.dtend) ||
+        jscal.includeDtstart === false ||
         Boolean(jscal.recurrenceRules?.length) ||
         Boolean(jscal.excludedRecurrenceRules?.length) ||
         Boolean(jscal.recurrenceOverrides && Object.keys(jscal.recurrenceOverrides).length);
@@ -210,7 +221,7 @@ export class DjRecurrenceWidget extends HTMLElement {
     this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
     this.textarea.dispatchEvent(new Event("change", { bubbles: true }));
     this.dispatchEvent(
-      new CustomEvent("dj-recurrence:change", {
+      new CustomEvent("django-recur:change", {
         bubbles: true,
         detail: {
           jscalendar: jscal,
@@ -248,8 +259,9 @@ export class DjRecurrenceWidget extends HTMLElement {
       Date.UTC(target.getFullYear(), target.getMonth(), target.getDate(), 0, 0, 0)
     );
     this.datePanels.push({
-      isoKey: dateToJSCalendarUTC(utcMidnight),
+      isoKey: dateToJSCalendarUTC(utcMidnight).slice(0, -1),
       excluded: false,
+      patch: {},
       expanded: true,
     });
     this.syncToTextarea();
@@ -287,7 +299,7 @@ export class DjRecurrenceWidget extends HTMLElement {
     addDateBtn.addEventListener("click", () => this.addDate());
 
     const badge = document.createElement("span");
-    badge.className = "dj-recurrence-badge";
+    badge.className = "django-recur-badge";
     badge.textContent = this.outputFormat === "rfc8984" ? "RFC 8984" : "RFC 5545";
 
     controlBar.appendChild(addRuleBtn);
@@ -868,7 +880,10 @@ export class DjRecurrenceWidget extends HTMLElement {
           countInput.disabled = true;
           delete entry.rule.count;
           if (untilDateInput.value) {
-            entry.rule.until = dateToJSCalendarUTC(parseDateString(untilDateInput.value));
+            const date = dateToJSCalendarUTC(parseDateString(untilDateInput.value));
+            entry.rule.until = entry.rule.until
+              ? date.slice(0, 10) + entry.rule.until.slice(10)
+              : date.slice(0, -1);
           }
         }
       }
@@ -970,7 +985,7 @@ export class DjRecurrenceWidget extends HTMLElement {
     dateInput.value = `${pad4(dt.getUTCFullYear())}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
     dateInput.addEventListener("change", () => {
       if (dateInput.value) {
-        entry.isoKey = dateToJSCalendarUTC(parseDateString(dateInput.value));
+        entry.isoKey = dateInput.value + entry.isoKey.slice(10);
         updateDateLabel();
         this.syncToTextarea();
       }
@@ -987,7 +1002,7 @@ export class DjRecurrenceWidget extends HTMLElement {
 }
 
 export function registerRecurrenceWebComponent(): void {
-  if (typeof customElements !== "undefined" && !customElements.get("dj-recurrence-widget")) {
-    customElements.define("dj-recurrence-widget", DjRecurrenceWidget);
+  if (typeof customElements !== "undefined" && !customElements.get("django-recur-widget")) {
+    customElements.define("django-recur-widget", DjangoRecurWidget);
   }
 }

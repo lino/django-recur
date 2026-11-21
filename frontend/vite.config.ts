@@ -3,10 +3,10 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
-    outDir: resolve(__dirname, "../src/recurrence/static/recurrence/js"),
+    outDir: resolve(import.meta.dirname, "../src/recurrence/static/recurrence/js"),
     emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      entry: resolve(import.meta.dirname, "src/index.ts"),
       name: "recurrence",
       formats: ["iife"],
       fileName: () => "recurrence-widget.js",

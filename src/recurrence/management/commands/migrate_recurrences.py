@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from dj_recurrence.management.commands.migrate_recurrences import Command
+from django_recur.management.commands.migrate_recurrences import Command
 
 __all__ = ["Command"]

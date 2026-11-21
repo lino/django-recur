@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Only the latest minor release series of `django-recurrence-jscalendar` receives security updates.
+Only the latest minor release series of `django-recur` receives security updates.
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -15,8 +15,8 @@ Please **do not** report security vulnerabilities through public GitHub issues.
 
 Instead, please report them privately via:
 
-1. **GitHub Private Vulnerability Reporting**: [Report a vulnerability](https://github.com/lino/django-recurrence-jscalendar/security/advisories/new)
-2. **Email**: Send details to Lino Helms at `<lino@lino.io>` with the subject line `[SECURITY] django-recurrence-jscalendar`.
+1. **GitHub Private Vulnerability Reporting**: [Report a vulnerability](https://github.com/lino/django-recur/security/advisories/new)
+2. **Email**: Send details to Lino Helms at `<lino@lino.io>` with the subject line `[SECURITY] django-recur`.
 
 Please include:
 - A description of the issue and its potential impact.

@@ -1,10 +1,10 @@
-# `dj_recurrence` API Reference
+# `django_recur` API Reference
 
-The `dj_recurrence` package provides the native **RFC 8984 (JSCalendar)** data model, **RFC 5545 (iCalendar)** conversion and audit tools, `JSCalendarRecurrenceField`, and `<dj-recurrence-widget>`.
+The `django_recur` package provides the native **RFC 8984 (JSCalendar)** data model, **RFC 5545 (iCalendar)** conversion and audit tools, `JSCalendarRecurrenceField`, and `<django-recur-widget>`.
 
 ---
 
-## RFC 8984 Data Model (`dj_recurrence.rfc8984`)
+## RFC 8984 Data Model (`django_recur.rfc8984`)
 
 ### `Frequency` (`StrEnum`)
 
@@ -125,7 +125,7 @@ Container for RFC 8984 §4.3 recurrence properties:
 
 ---
 
-## RFC 5545 Conversion & Audit (`dj_recurrence.rfc5545`)
+## RFC 5545 Conversion & Audit (`django_recur.rfc5545`)
 
 - `FEATURE_MATRIX`: List of dictionaries describing every RFC 8984 / RFC 5545 feature and its auto-mapping status.
 - `ConversionIssue`: Dataclass recording a `feature`, `direction`, `status` (`"lossless" | "conditional" | "lossy" | "unsupported"`), and `message`.
@@ -136,8 +136,8 @@ Container for RFC 8984 §4.3 recurrence properties:
 
 ---
 
-## Django Model & Form Fields (`dj_recurrence.fields`, `dj_recurrence.forms`, `dj_recurrence.widgets`)
+## Django Model & Form Fields (`django_recur.fields`, `django_recur.forms`, `django_recur.widgets`)
 
 - `JSCalendarRecurrenceField`: Subclass of `django.db.models.JSONField` that stores RFC 8984 JSCalendar JSON in the database and returns `JSCalendarRecurrence` objects in Python.
 - `JSCalendarRecurrenceFormField`: Django form field that accepts RFC 8984 JSON, RFC 5545 text, or `JSCalendarRecurrence` objects and returns a validated `JSCalendarRecurrence`.
-- `RecurrenceWidget` / `JSCalendarRecurrenceWidget`: Renders `<dj-recurrence-widget>` around a synced `<textarea>`.
+- `RecurrenceWidget` / `JSCalendarRecurrenceWidget`: Renders `<django-recur-widget>` around a synced `<textarea>`.

@@ -1,1 +1,1 @@
-"""Test suite for django-recurrence-jscalendar."""
+"""Test suite for django-recur."""

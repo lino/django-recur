@@ -18,13 +18,14 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import dateutil.rrule
 from dateutil import tz
 from django.conf import settings as django_settings
 from django.utils.timezone import get_current_timezone, is_aware, is_naive, make_aware
 
-from dj_recurrence import exceptions
+from django_recur import exceptions
 
 
 class Frequency(str, Enum):
@@ -129,7 +130,7 @@ def normalize_offset_awareness(
     if from_dt and is_aware(from_dt) and is_aware(dt):
         return dt
     if from_dt and is_aware(from_dt) and is_naive(dt):
-        return make_aware(dt)
+        return make_aware(dt, from_dt.tzinfo)
     if is_aware(dt):
         local_dt = dt.astimezone(get_current_timezone())
         return datetime.datetime(
@@ -158,7 +159,9 @@ def format_jscalendar_datetime(dt: datetime.datetime, as_utc: bool = True) -> st
     return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def parse_jscalendar_datetime(text: str) -> datetime.datetime:
+def parse_jscalendar_datetime(
+    text: str, *, local: bool = False, time_zone: datetime.tzinfo | None = None
+) -> datetime.datetime:
     """
     Parse an RFC 8984 ``LocalDateTime`` or ``UTCDateTime`` (or compact ISO/RFC 5545 string)
     into a ``datetime.datetime`` respecting ``RECURRENCE_USE_TZ`` / ``USE_TZ``.
@@ -171,13 +174,19 @@ def parse_jscalendar_datetime(text: str) -> datetime.datetime:
     cleaned_no_z = cleaned[:-1] if is_utc_marker else cleaned
 
     try:
+        microsecond = 0
         if "-" in cleaned_no_z:
             # ISO 8601 extended format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
             if "T" in cleaned_no_z or "t" in cleaned_no_z:
                 date_part, time_part = cleaned_no_z.replace("t", "T").split("T", 1)
-                # Strip fractional seconds if present
                 if "." in time_part:
-                    time_part = time_part.split(".", 1)[0]
+                    time_part, fraction = time_part.split(".", 1)
+                    if not fraction.isascii() or not fraction.isdecimal():
+                        raise ValueError("Invalid fractional seconds")
+                    if local:
+                        if len(fraction) > 6:
+                            raise ValueError("Fractional seconds exceed datetime precision")
+                        microsecond = int(fraction.ljust(6, "0"))
                 year_s, month_s, day_s = date_part.split("-")
                 hour_s, minute_s, second_s = time_part.split(":")
                 year, month, day = int(year_s), int(month_s), int(day_s)
@@ -206,10 +215,23 @@ def parse_jscalendar_datetime(text: str) -> datetime.datetime:
             else:
                 hour, minute, second = 0, 0, 0
 
-        tzinfo = tz.UTC if is_utc_marker else get_current_timezone()
-        dt = datetime.datetime(year, month, day, hour, minute, second, tzinfo=tzinfo)
+        tzinfo: datetime.tzinfo | None
+        if is_utc_marker:
+            tzinfo = tz.UTC
+        elif local:
+            tzinfo = time_zone
+        else:
+            tzinfo = get_current_timezone()
+        dt = datetime.datetime(year, month, day, hour, minute, second, microsecond, tzinfo)
     except (ValueError, TypeError) as exc:
         raise exceptions.DeserializationError(f"malformed date-time: {text!r}") from exc
+
+    if local:
+        if is_utc_marker and time_zone is not None:
+            dt = dt.astimezone(time_zone)
+        elif is_utc_marker and not deserialize_tz_enabled():
+            dt = dt.astimezone(get_current_timezone())
+        return dt if deserialize_tz_enabled() else dt.replace(tzinfo=None)
 
     if deserialize_tz_enabled():
         return dt
@@ -223,6 +245,21 @@ def parse_jscalendar_datetime(text: str) -> datetime.datetime:
         local_dt.minute,
         local_dt.second,
     )
+
+
+def calendar_time_zone(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (TypeError, ValueError, ZoneInfoNotFoundError) as exc:
+        raise exceptions.DeserializationError(f"Unknown time zone: {name!r}") from exc
+
+
+def format_local_datetime(
+    value: datetime.datetime, time_zone: datetime.tzinfo | None = None
+) -> str:
+    if is_aware(value) and time_zone is not None:
+        value = value.astimezone(time_zone)
+    return value.replace(tzinfo=None).isoformat()
 
 
 @dataclass(frozen=True)
@@ -579,13 +616,7 @@ class RecurrenceRule:
         self._validate_int_seq("byweekno", self.by_week_no, -53, 53, disallow_zero=strict_rfc8984)
         self._validate_int_seq("byhour", self.by_hour, 0, 23, disallow_zero=False)
         self._validate_int_seq("byminute", self.by_minute, 0, 59, disallow_zero=False)
-        self._validate_int_seq(
-            "bysecond",
-            self.by_second,
-            0,
-            60 if strict_rfc8984 else 59,
-            disallow_zero=False,
-        )
+        self._validate_int_seq("bysecond", self.by_second, 0, 60, disallow_zero=False)
         self._validate_int_seq(
             "bysetpos", self.by_set_position, -366, 366, disallow_zero=strict_rfc8984
         )
@@ -608,7 +639,9 @@ class RecurrenceRule:
             except (ValueError, TypeError) as exc:
                 raise exceptions.ValidationError(f"invalid {param} parameter: {val!r}") from exc
 
-    def to_jscalendar(self, include_defaults: bool = False) -> dict[str, Any]:
+    def to_jscalendar(
+        self, include_defaults: bool = False, *, time_zone: datetime.tzinfo | None = None
+    ) -> dict[str, Any]:
         """Serialize this ``RecurrenceRule`` to an RFC 8984 JSON-compatible dictionary."""
         try:
             self.validate(strict_rfc8984=False)
@@ -650,12 +683,14 @@ class RecurrenceRule:
         if self.count is not None:
             data["count"] = int(self.count)
         elif self.until is not None:
-            data["until"] = format_jscalendar_datetime(self.until, as_utc=True)
+            data["until"] = format_local_datetime(self.until, time_zone)
 
         return data
 
     @classmethod
-    def from_jscalendar(cls, data: Mapping[str, Any]) -> RecurrenceRule:
+    def from_jscalendar(
+        cls, data: Mapping[str, Any], *, time_zone: datetime.tzinfo | None = None
+    ) -> RecurrenceRule:
         """Deserialize an RFC 8984 ``RecurrenceRule`` dictionary."""
         if not isinstance(data, Mapping):
             raise exceptions.DeserializationError(f"Expected RecurrenceRule dict, got {data!r}")
@@ -695,7 +730,11 @@ class RecurrenceRule:
             )
 
         until_val = data.get("until")
-        until_dt = parse_jscalendar_datetime(until_val) if until_val is not None else None
+        until_dt = (
+            parse_jscalendar_datetime(until_val, local=True, time_zone=time_zone)
+            if until_val is not None
+            else None
+        )
 
         by_day_raw = data.get("byDay") or ()
         if not isinstance(by_day_raw, list | tuple):
@@ -764,7 +803,7 @@ class RecurrenceRule:
 
     def to_text(self, short: bool = False) -> str:
         """Render the rule as natural language text."""
-        from dj_recurrence.text import rule_to_text
+        from django_recur.text import rule_to_text
 
         return rule_to_text(self, short=short)
 
@@ -777,13 +816,15 @@ class RecurrenceRule:
         """
         Convert this ``RecurrenceRule`` to a ``dateutil.rrule.rrule`` instance.
 
-        Note: If ``skip`` is ``"backward"`` or ``"forward"``, use ``iter_occurrences``
+        Note: If ``skip`` is ``"backward"`` or ``"forward"``, use ``expand_with_skip``
         or ``JSCalendarRecurrence`` which applies RFC 8984 / RFC 7529 skip shifting.
         """
         if self.rscale != "gregorian":
             raise exceptions.UnsupportedFeatureError(
                 f"Non-Gregorian rscale {self.rscale!r} cannot be expanded by dateutil.rrule"
             )
+        if self._needs_skip_expansion():
+            raise exceptions.UnsupportedFeatureError("Use expand_with_skip for SKIP rules")
 
         freq_int: Any = Frequency(self.frequency).to_int()
         wkst_int = (
@@ -797,6 +838,10 @@ class RecurrenceRule:
             for nd in self.by_day
         ] or None
 
+        if 60 in self.by_second:
+            raise exceptions.UnsupportedFeatureError(
+                "Leap-second occurrences cannot be expanded by Python datetime"
+            )
         bymonth = [int(m) for m in self.by_month] if self.by_month else None
 
         until = self.until
@@ -827,10 +872,9 @@ class RecurrenceRule:
         )
 
     def _needs_skip_expansion(self) -> bool:
-        return (
-            self.skip in (Skip.BACKWARD.value, Skip.FORWARD.value)
-            and self.frequency in (Frequency.YEARLY.value, Frequency.MONTHLY.value)
-            and bool(self.by_month_day)
+        return self.skip in (Skip.BACKWARD.value, Skip.FORWARD.value) and self.frequency in (
+            Frequency.YEARLY.value,
+            Frequency.MONTHLY.value,
         )
 
     def expand_with_skip(
@@ -838,9 +882,26 @@ class RecurrenceRule:
         dtstart: datetime.datetime | None = None,
         dtend: datetime.datetime | None = None,
     ) -> list[datetime.datetime]:
-        """
-        Expand occurrences when ``skip`` is ``"backward"`` or ``"forward"`` (RFC 8984 §4.3.3).
-        """
+        """Expand a Gregorian SKIP rule into a list of occurrences."""
+        return list(self._iter_with_skip(dtstart, dtend))
+
+    def _iter_with_skip(
+        self, dtstart: datetime.datetime | None, dtend: datetime.datetime | None
+    ) -> Iterator[datetime.datetime]:
+        if self.rscale != "gregorian" or any(
+            (
+                self.by_day,
+                self.by_week_no,
+                self.by_year_day,
+                self.by_hour,
+                self.by_minute,
+                self.by_second,
+                self.by_set_position,
+            )
+        ):
+            raise exceptions.UnsupportedFeatureError(
+                "SKIP expansion supports Gregorian month and month-day filters only"
+            )
         base_start = dtstart or datetime.datetime.now()
         until = self.until
         if until:
@@ -850,19 +911,17 @@ class RecurrenceRule:
         elif dtend:
             until = dtend
 
-        max_years = 200 if (self.count is None and until is None) else 500
-        results: list[datetime.datetime] = []
-        seen: set[datetime.datetime] = set()
+        count = 0
+        last = None
 
         months_filter = [int(m) for m in self.by_month] if self.by_month else None
+        month_days = self.by_month_day or (base_start.day,)
         step = int(self.interval)
 
         year = base_start.year
         month = base_start.month
 
-        iterations = 0
-        while iterations < max_years * 12:
-            iterations += 1
+        while year <= datetime.MAXYEAR:
             if self.frequency == Frequency.YEARLY.value:
                 target_months = months_filter or [base_start.month]
             else:
@@ -870,32 +929,35 @@ class RecurrenceRule:
                 if months_filter and month not in months_filter:
                     target_months = []
 
+            candidates: set[datetime.datetime] = set()
             for m in target_months:
                 _, max_day = calendar.monthrange(year, m)
-                for req_day in self.by_month_day:
+                for req_day in month_days:
                     actual_day = req_day if req_day > 0 else max_day + 1 + req_day
                     if 1 <= actual_day <= max_day:
                         cand = base_start.replace(year=year, month=m, day=actual_day)
-                    elif actual_day > max_day:
+                    else:
                         if self.skip == Skip.BACKWARD.value:
                             cand = base_start.replace(year=year, month=m, day=max_day)
                         elif self.skip == Skip.FORWARD.value:
                             next_y, next_m = (year + 1, 1) if m == 12 else (year, m + 1)
+                            if next_y > datetime.MAXYEAR:
+                                continue
                             cand = base_start.replace(year=next_y, month=next_m, day=1)
                         else:
                             continue
-                    else:
-                        continue
+                    candidates.add(cand)
 
-                    if cand < base_start:
-                        continue
-                    if until and cand > until:
-                        return results
-                    if cand not in seen:
-                        seen.add(cand)
-                        results.append(cand)
-                        if self.count is not None and len(results) >= self.count:
-                            return results
+            for cand in sorted(candidates):
+                if cand < base_start or cand == last:
+                    continue
+                if until and cand > until:
+                    return
+                yield cand
+                last = cand
+                count += 1
+                if self.count is not None and count >= self.count:
+                    return
 
             if self.frequency == Frequency.YEARLY.value:
                 year += step
@@ -903,10 +965,31 @@ class RecurrenceRule:
                 total_m = (year * 12 + (month - 1)) + step
                 year, month = divmod(total_m, 12)
                 month += 1
-            if until and datetime.datetime(year, month, 1, tzinfo=base_start.tzinfo) > until:
-                break
+            if until:
+                first_month = (
+                    min(months_filter or [base_start.month])
+                    if self.frequency == "yearly"
+                    else month
+                )
+                if year > until.year or (year == until.year and first_month > until.month):
+                    break
 
-        return results
+
+class _SkipOccurrences:
+    """Repeatable iterable for dateutil's ordered recurrence merge."""
+
+    def __init__(
+        self,
+        rule: RecurrenceRule,
+        dtstart: datetime.datetime | None,
+        dtend: datetime.datetime | None,
+    ) -> None:
+        self.rule = rule
+        self.dtstart = dtstart if dtstart is not None else datetime.datetime.now()
+        self.dtend = dtend
+
+    def __iter__(self) -> Iterator[datetime.datetime]:
+        return self.rule._iter_with_skip(self.dtstart, self.dtend)
 
 
 @dataclass
@@ -1046,38 +1129,53 @@ class JSCalendarRecurrence:
             if not isinstance(ov, RecurrenceOverride):
                 raise exceptions.ValidationError(f"invalid RecurrenceOverride: {ov!r}")
 
+    def _serialization_time_zone(self) -> str | None:
+        if self.time_zone is not None:
+            return self.time_zone
+        dates = (
+            self.dtstart,
+            self.dtend,
+            *self.recurrence_overrides,
+            *(rule.until for rule in (*self.rrules, *self.exrules)),
+        )
+        aware = next((date for date in dates if date is not None and is_aware(date)), None)
+        if aware is None:
+            return None
+        return getattr(aware.tzinfo, "key", None) or getattr(aware.tzinfo, "zone", None) or "UTC"
+
     def to_jscalendar(self, include_defaults: bool = False) -> dict[str, Any]:
-        """
-        Serialize this recurrence schedule to an RFC 8984 JSCalendar Event/Schedule object.
-        """
+        """Serialize the schedule to a JSCalendar recurrence object."""
         try:
             self.validate(strict_rfc8984=False)
         except exceptions.ValidationError as exc:
             raise exceptions.SerializationError(str(exc.args[0])) from exc
 
+        zone_name = self._serialization_time_zone()
+        zone = calendar_time_zone(zone_name) if zone_name is not None else None
         result: dict[str, Any] = {"@type": "Event"}
         if self.dtstart is not None:
-            result["start"] = format_jscalendar_datetime(self.dtstart, as_utc=True)
+            result["start"] = format_local_datetime(self.dtstart, zone)
         if self.dtend is not None:
-            result["dtend"] = format_jscalendar_datetime(self.dtend, as_utc=True)
-        if self.time_zone is not None:
-            result["timeZone"] = self.time_zone
+            result["dtend"] = format_local_datetime(self.dtend, zone)
+        if zone_name is not None:
+            result["timeZone"] = zone_name
         if not self.include_dtstart:
             result["includeDtstart"] = False
 
         if self.recurrence_rules:
             result["recurrenceRules"] = [
-                r.to_jscalendar(include_defaults=include_defaults) for r in self.recurrence_rules
+                r.to_jscalendar(include_defaults=include_defaults, time_zone=zone)
+                for r in self.recurrence_rules
             ]
         if self.excluded_recurrence_rules:
             result["excludedRecurrenceRules"] = [
-                r.to_jscalendar(include_defaults=include_defaults)
+                r.to_jscalendar(include_defaults=include_defaults, time_zone=zone)
                 for r in self.excluded_recurrence_rules
             ]
         if self.recurrence_overrides:
             overrides_dict: dict[str, dict[str, Any]] = {}
             for dt, ov in self.recurrence_overrides.items():
-                key = format_jscalendar_datetime(dt, as_utc=True)
+                key = format_local_datetime(dt, zone)
                 overrides_dict[key] = ov.to_jscalendar()
             result["recurrenceOverrides"] = overrides_dict
 
@@ -1115,35 +1213,41 @@ class JSCalendarRecurrence:
             single_rule = RecurrenceRule.from_jscalendar(data)
             return cls(recurrence_rules=[single_rule], include_dtstart=include_dtstart)
 
+        time_zone = data.get("timeZone")
+        if "timeZone" not in data:
+            # Earlier versions wrote UTC timestamps without a timeZone property.
+            dates = (data.get("start"), data.get("dtend"))
+            if any(isinstance(value, str) and value.upper().endswith("Z") for value in dates):
+                time_zone = "UTC"
+        zone = calendar_time_zone(time_zone) if time_zone is not None else None
         dtstart = (
-            parse_jscalendar_datetime(data["start"])
+            parse_jscalendar_datetime(data["start"], local=True, time_zone=zone)
             if "start" in data and data["start"] is not None
             else None
         )
         dtend = (
-            parse_jscalendar_datetime(data["dtend"])
+            parse_jscalendar_datetime(data["dtend"], local=True, time_zone=zone)
             if "dtend" in data and data["dtend"] is not None
             else None
         )
-        time_zone = data.get("timeZone")
         eff_include_dtstart = bool(data.get("includeDtstart", include_dtstart))
 
         rrules_raw = data.get("recurrenceRules") or []
         if not isinstance(rrules_raw, list | tuple):
             raise exceptions.DeserializationError("recurrenceRules must be a list")
-        rrules = [RecurrenceRule.from_jscalendar(r) for r in rrules_raw]
+        rrules = [RecurrenceRule.from_jscalendar(r, time_zone=zone) for r in rrules_raw]
 
         exrules_raw = data.get("excludedRecurrenceRules") or []
         if not isinstance(exrules_raw, list | tuple):
             raise exceptions.DeserializationError("excludedRecurrenceRules must be a list")
-        exrules = [RecurrenceRule.from_jscalendar(r) for r in exrules_raw]
+        exrules = [RecurrenceRule.from_jscalendar(r, time_zone=zone) for r in exrules_raw]
 
         overrides_raw = data.get("recurrenceOverrides") or {}
         if not isinstance(overrides_raw, Mapping):
             raise exceptions.DeserializationError("recurrenceOverrides must be an object")
         overrides: dict[datetime.datetime, RecurrenceOverride] = {}
         for dt_str, patch_obj in overrides_raw.items():
-            dt_val = parse_jscalendar_datetime(dt_str)
+            dt_val = parse_jscalendar_datetime(dt_str, local=True, time_zone=zone)
             overrides[dt_val] = RecurrenceOverride.from_jscalendar(patch_obj)
 
         return cls(
@@ -1159,13 +1263,13 @@ class JSCalendarRecurrence:
     from_json = from_jscalendar
 
     def to_icalendar(self) -> str:
-        from dj_recurrence.rfc5545 import jscalendar_to_icalendar
+        from django_recur.rfc5545 import jscalendar_to_icalendar
 
         return jscalendar_to_icalendar(self)
 
     @classmethod
     def from_icalendar(cls, text: str, include_dtstart: bool = True) -> JSCalendarRecurrence:
-        from dj_recurrence.rfc5545 import icalendar_to_jscalendar
+        from django_recur.rfc5545 import icalendar_to_jscalendar
 
         return icalendar_to_jscalendar(text, include_dtstart=include_dtstart)
 
@@ -1177,6 +1281,12 @@ class JSCalendarRecurrence:
     ) -> dateutil.rrule.rruleset:
         eff_dtstart = dtstart or self.dtstart
         eff_dtend = dtend or self.dtend
+        if self.time_zone is not None and deserialize_tz_enabled():
+            zone = calendar_time_zone(self.time_zone)
+            if eff_dtstart is not None and is_naive(eff_dtstart):
+                eff_dtstart = make_aware(eff_dtstart, zone)
+            if eff_dtend is not None and is_naive(eff_dtend):
+                eff_dtend = make_aware(eff_dtend, zone)
 
         if eff_dtend:
             eff_dtend = normalize_offset_awareness(eff_dtend, eff_dtstart)
@@ -1190,15 +1300,14 @@ class JSCalendarRecurrence:
 
         for rrule in self.recurrence_rules:
             if rrule._needs_skip_expansion():
-                for occ in rrule.expand_with_skip(eff_dtstart, eff_dtend):
-                    rruleset.rdate(occ)
+                # dateutil merges any sorted, repeatable iterable of datetimes.
+                rruleset.rrule(_SkipOccurrences(rrule, eff_dtstart, eff_dtend))  # type: ignore[arg-type]
             else:
                 rruleset.rrule(rrule.to_dateutil_rrule(eff_dtstart, eff_dtend, cache))
 
         for exrule in self.excluded_recurrence_rules:
             if exrule._needs_skip_expansion():
-                for occ in exrule.expand_with_skip(eff_dtstart, eff_dtend):
-                    rruleset.exdate(occ)
+                rruleset.exrule(_SkipOccurrences(exrule, eff_dtstart, eff_dtend))  # type: ignore[arg-type]
             else:
                 rruleset.exrule(exrule.to_dateutil_rrule(eff_dtstart, eff_dtend, cache))
 

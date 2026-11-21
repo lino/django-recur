@@ -1,4 +1,4 @@
-"""Exceptions for dj_recurrence and recurrence compatibility."""
+"""Exceptions for django_recur and recurrence compatibility."""
 
 from __future__ import annotations
 

@@ -28,7 +28,7 @@ jobs:
       - name: Build TypeScript Web Component widget
         working-directory: frontend
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: Install uv
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/django-recurrence-jscalendar
+      url: https://pypi.org/p/django-recur
     permissions:
       id-token: write
     steps:

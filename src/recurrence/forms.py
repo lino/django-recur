@@ -11,7 +11,7 @@ from django import forms
 from django.utils.translation import gettext_lazy as _
 
 import recurrence
-from dj_recurrence.widgets import (
+from django_recur.widgets import (
     RecurrenceWidget,
     find_recurrence_i18n_js_catalog,
 )

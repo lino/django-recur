@@ -1,10 +1,10 @@
-"""Test models for both drop-in recurrence and native dj_recurrence fields."""
+"""Test models for both drop-in recurrence and native django_recur fields."""
 
 from __future__ import annotations
 
 from django.db import models
 
-from dj_recurrence.fields import JSCalendarRecurrenceField
+from django_recur.fields import JSCalendarRecurrenceField
 from recurrence.fields import RecurrenceField
 
 

@@ -10,10 +10,10 @@ from typing import Any
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from dj_recurrence import exceptions
-from dj_recurrence.rfc5545 import deserialize_any
-from dj_recurrence.rfc8984 import Frequency, JSCalendarRecurrence
-from dj_recurrence.widgets import JSCalendarRecurrenceWidget
+from django_recur import exceptions
+from django_recur.rfc5545 import deserialize_any
+from django_recur.rfc8984 import Frequency, JSCalendarRecurrence
+from django_recur.widgets import JSCalendarRecurrenceWidget
 
 
 class JSCalendarRecurrenceFormField(forms.CharField):

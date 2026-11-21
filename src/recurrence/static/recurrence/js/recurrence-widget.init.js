@@ -1,5 +1,5 @@
 /**
- * Auto-initializer for django-recurrence-jscalendar widgets in Django Admin
+ * Auto-initializer for django-recur widgets in Django Admin
  * and dynamic formsets.
  */
 (function () {
@@ -8,17 +8,17 @@
     function initWidgets(root) {
         var container = root || document;
         var textareas = container.querySelectorAll(
-            "textarea.recurrence-widget:not([data-dj-recurrence-initialized])"
+            "textarea.recurrence-widget:not([data-django-recur-initialized])"
         );
         for (var i = 0; i < textareas.length; i++) {
             var ta = textareas[i];
             if (ta.id && ta.id.indexOf("__prefix__") !== -1) {
                 continue;
             }
-            ta.setAttribute("data-dj-recurrence-initialized", "true");
+            ta.setAttribute("data-django-recur-initialized", "true");
             if (
                 ta.parentElement &&
-                ta.parentElement.tagName.toLowerCase() !== "dj-recurrence-widget" &&
+                ta.parentElement.tagName.toLowerCase() !== "django-recur-widget" &&
                 window.recurrence &&
                 window.recurrence.widget &&
                 window.recurrence.widget.Widget

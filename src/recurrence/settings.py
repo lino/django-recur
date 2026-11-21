@@ -1,5 +1,5 @@
 """
-Settings for django-recurrence-jscalendar.
+Settings for django-recur.
 
 - ``RECURRENCE_USE_TZ``: Determines if a datetime deserialized from RFC 5545 or
   RFC 8984 text is returned as a timezone-aware datetime or naive datetime.

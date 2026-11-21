@@ -1,10 +1,10 @@
 """
-dj_recurrence: Modern RFC 8984 (JSCalendar) & RFC 5545 recurrence engine for Django.
+django_recur: Modern RFC 8984 (JSCalendar) & RFC 5545 recurrence engine for Django.
 """
 
 from __future__ import annotations
 
-from dj_recurrence.exceptions import (
+from django_recur.exceptions import (
     ConversionError,
     DeserializationError,
     RecurrenceError,
@@ -12,7 +12,7 @@ from dj_recurrence.exceptions import (
     UnsupportedFeatureError,
     ValidationError,
 )
-from dj_recurrence.rfc5545 import (
+from django_recur.rfc5545 import (
     FEATURE_MATRIX,
     ConversionIssue,
     ConversionReport,
@@ -23,7 +23,7 @@ from dj_recurrence.rfc5545 import (
     icalendar_to_jscalendar,
     jscalendar_to_icalendar,
 )
-from dj_recurrence.rfc8984 import (
+from django_recur.rfc8984 import (
     DayOfWeek,
     Frequency,
     JSCalendarRecurrence,
@@ -36,7 +36,7 @@ from dj_recurrence.rfc8984 import (
     parse_jscalendar_datetime,
     to_utc,
 )
-from dj_recurrence.text import rule_to_text
+from django_recur.text import rule_to_text
 
 __version__ = "2.0.0"
 

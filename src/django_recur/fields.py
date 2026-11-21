@@ -9,26 +9,20 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from django.db import models
+from django.db.models.fields.json import KeyTransform
+from django.db.models.query_utils import DeferredAttribute
 
-from dj_recurrence import forms as dj_forms
-from dj_recurrence import widgets as dj_widgets
-from dj_recurrence.rfc5545 import deserialize_any
-from dj_recurrence.rfc8984 import JSCalendarRecurrence, RecurrenceRule
+from django_recur import forms as dj_forms
+from django_recur import widgets as dj_widgets
+from django_recur.rfc5545 import deserialize_any
+from django_recur.rfc8984 import JSCalendarRecurrence, RecurrenceRule
 
 
-class JSCalendarCreator:
+class JSCalendarCreator(DeferredAttribute):
     """Descriptor ensuring model attribute assignment converts values via ``to_python``."""
 
-    def __init__(self, field: JSCalendarRecurrenceField) -> None:
-        self.field = field
-
-    def __get__(self, obj: Any, type: Any = None) -> Any:
-        if obj is None:
-            return self
-        return obj.__dict__[self.field.name]
-
     def __set__(self, obj: Any, value: Any) -> None:
-        obj.__dict__[self.field.name] = self.field.to_python(value)
+        obj.__dict__[self.field.attname] = self.field.to_python(value)
 
 
 class JSCalendarRecurrenceField(models.JSONField):
@@ -37,6 +31,8 @@ class JSCalendarRecurrenceField(models.JSONField):
     RFC 8984 JSCalendar JSON structure inside a ``JSONField`` while exposing
     a ``JSCalendarRecurrence`` object in Python.
     """
+
+    descriptor_class = JSCalendarCreator
 
     def __init__(self, include_dtstart: bool = True, **kwargs: Any) -> None:
         self.include_dtstart = include_dtstart
@@ -67,13 +63,14 @@ class JSCalendarRecurrenceField(models.JSONField):
             return deserialize_any(value, include_dtstart=self.include_dtstart)
         return deserialize_any(str(value), include_dtstart=self.include_dtstart)
 
-    def from_db_value(
-        self, value: Any, expression: Any, connection: Any
-    ) -> JSCalendarRecurrence | None:
-        if value is None:
-            return None
+    def from_db_value(self, value: Any, expression: Any, connection: Any) -> Any:
         parsed = super().from_db_value(value, expression, connection)
+        if isinstance(expression, KeyTransform):
+            return parsed
         return self.to_python(parsed)
+
+    def validate(self, value: Any, model_instance: models.Model | None) -> None:
+        super().validate(self.get_prep_value(value), model_instance)
 
     def get_prep_value(self, value: Any) -> Any:
         if value is None:
@@ -98,12 +95,6 @@ class JSCalendarRecurrenceField(models.JSONField):
             )
             return super().get_prep_value(mapped_rec.to_jscalendar())
         return super().get_prep_value(value)
-
-    def contribute_to_class(
-        self, cls: type[models.Model], name: str, private_only: bool = False, **kwargs: Any
-    ) -> None:
-        super().contribute_to_class(cls, name, private_only=private_only, **kwargs)
-        setattr(cls, self.name, JSCalendarCreator(self))
 
     def value_to_string(self, obj: models.Model) -> str:
         val = self.value_from_object(obj)

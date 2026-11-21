@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation & RFC Compliance Matrix
-    url: https://lino.github.io/django-recurrence-jscalendar/
+    url: https://lino.github.io/django-recur/
     about: Read the documentation, migration guide, and RFC 8984 / RFC 5545 feature matrix.
   - name: Security Vulnerability Report
-    url: https://github.com/lino/django-recurrence-jscalendar/security/advisories/new
+    url: https://github.com/lino/django-recur/security/advisories/new
     about: Please report security vulnerabilities privately rather than in public issues.

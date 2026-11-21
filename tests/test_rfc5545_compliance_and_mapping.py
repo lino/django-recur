@@ -5,20 +5,24 @@ bidirectional conversion reports, and dateutil conversion helpers.
 
 from __future__ import annotations
 
-from datetime import datetime
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 
 import dateutil.rrule
 import pytest
+from django.test import override_settings
+from django.utils import timezone as django_timezone
 
 import recurrence
-from dj_recurrence import exceptions
-from dj_recurrence.rfc5545 import (
+from django_recur import exceptions
+from django_recur.rfc5545 import (
     FEATURE_MATRIX,
     convert_icalendar_to_jscalendar_with_report,
     convert_jscalendar_to_icalendar_with_report,
     deserialize_any,
 )
-from dj_recurrence.rfc8984 import (
+from django_recur.rfc8984 import (
     Frequency,
     JSCalendarRecurrence,
     NDay,
@@ -26,6 +30,78 @@ from dj_recurrence.rfc8984 import (
     RecurrenceRule,
     Skip,
 )
+
+CALENDAR_CASES = json.loads(Path(__file__).with_name("calendar_cases.json").read_text())
+
+
+@override_settings(RECURRENCE_USE_TZ=True)
+def test_folded_zoned_recurrence_crosses_dst_and_exdates_win():
+    fixture = CALENDAR_CASES["foldedBerlin"]
+    with django_timezone.override("America/New_York"):
+        report = convert_icalendar_to_jscalendar_with_report(fixture["icalendar"])
+        assert report.lossless
+        assert report.output.to_jscalendar() == fixture["jscalendar"]
+        restored = JSCalendarRecurrence.from_jscalendar(fixture["jscalendar"])
+    assert [
+        date.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for date in restored.occurrences()
+    ] == fixture["occurrencesUTC"]
+
+
+@pytest.mark.parametrize("case", CALENDAR_CASES["localUntil"], ids=lambda case: case["description"])
+@override_settings(RECURRENCE_USE_TZ=True)
+def test_historical_wall_time_until_uses_zone_rules(case):
+    schedule = JSCalendarRecurrence.from_jscalendar(
+        {
+            "start": case["local"],
+            "timeZone": case["zone"],
+            "recurrenceRules": [{"frequency": "daily", "until": case["local"]}],
+        }
+    )
+    report = convert_jscalendar_to_icalendar_with_report(schedule, strict=True)
+    assert f"UNTIL={case['utc']}" in report.output
+    assert schedule.to_jscalendar()["recurrenceRules"][0]["until"] == case["local"]
+
+
+def test_conversion_reports_ambiguous_and_date_only_values():
+    report = convert_icalendar_to_jscalendar_with_report(
+        "DTSTART;TZID=America/New_York:20071103T013000\nRRULE:FREQ=DAILY;UNTIL=20071104T063000Z"
+    )
+    assert not report.lossless
+    assert "ambiguous_local_time" in {issue.code for issue in report.issues}
+    report = convert_icalendar_to_jscalendar_with_report("DTSTART;VALUE=DATE:20000229")
+    assert not report.lossless
+    assert "date_value_promoted" in {issue.code for issue in report.issues}
+
+
+@override_settings(RECURRENCE_USE_TZ=True)
+def test_floating_times_are_independent_of_active_timezone():
+    text = "DTSTART:20000229T090000\nRRULE:FREQ=DAILY;UNTIL=20000301T090000"
+    with django_timezone.override("Asia/Kathmandu"):
+        report = convert_icalendar_to_jscalendar_with_report(text)
+    assert report.output.dtstart == datetime(2000, 2, 29, 9)
+    assert report.output.to_icalendar() == text
+
+
+def test_fractional_seconds_are_preserved_in_jscalendar_and_reported_in_icalendar():
+    schedule = JSCalendarRecurrence.from_jscalendar({"start": "2026-01-01T00:00:00.123456"})
+    assert schedule.to_jscalendar()["start"] == "2026-01-01T00:00:00.123456"
+    report = convert_jscalendar_to_icalendar_with_report(schedule)
+    assert not report.lossless
+    assert report.issues[0].code == "fractional_seconds_dropped"
+    with pytest.raises(exceptions.ConversionError, match="fractional seconds"):
+        convert_jscalendar_to_icalendar_with_report(schedule, strict=True)
+
+
+def test_leap_second_rule_round_trips_but_cannot_expand():
+    text = "DTSTART:20161231T235959Z\nRRULE:FREQ=MINUTELY;BYSECOND=59,60"
+    schedule = deserialize_any(text)
+    assert schedule.to_icalendar() == text
+    assert schedule.to_jscalendar()["recurrenceRules"][0]["bySecond"] == [59, 60]
+    with pytest.raises(exceptions.UnsupportedFeatureError, match="Leap-second"):
+        list(schedule.occurrences())
+    with pytest.raises(exceptions.DeserializationError, match="malformed date-time"):
+        deserialize_any("DTSTART:20161231T235960Z")
 
 
 def test_feature_matrix_completeness():

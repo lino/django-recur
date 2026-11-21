@@ -1,5 +1,5 @@
 /**
- * Main entrypoint for the django-recurrence-jscalendar Web Component bundle.
+ * Main entrypoint for the django-recur Web Component bundle.
  */
 
 export * from "./codec";

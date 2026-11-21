@@ -8,7 +8,7 @@ from typing import Any
 from django.db.models import fields
 
 import recurrence
-from dj_recurrence.rfc8984 import JSCalendarRecurrence
+from django_recur.rfc8984 import JSCalendarRecurrence
 from recurrence import forms
 from recurrence import settings as recurrence_settings
 from recurrence.compat import Creator

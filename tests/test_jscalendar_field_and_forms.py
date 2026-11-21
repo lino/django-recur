@@ -1,6 +1,6 @@
 """
 Tests for JSCalendarRecurrenceField, JSCalendarRecurrenceFormField,
-RecurrenceWidget (<dj-recurrence-widget>), and dual-format storage.
+RecurrenceWidget (<django-recur-widget>), and dual-format storage.
 """
 
 from __future__ import annotations
@@ -14,10 +14,10 @@ from django import forms
 from django.test import override_settings
 
 import recurrence
-from dj_recurrence.fields import JSCalendarCreator, JSCalendarRecurrenceField
-from dj_recurrence.forms import JSCalendarRecurrenceFormField
-from dj_recurrence.rfc8984 import Frequency, JSCalendarRecurrence, NDay, RecurrenceRule
-from dj_recurrence.widgets import (
+from django_recur.fields import JSCalendarCreator, JSCalendarRecurrenceField
+from django_recur.forms import JSCalendarRecurrenceFormField
+from django_recur.rfc8984 import Frequency, JSCalendarRecurrence, NDay, RecurrenceRule
+from django_recur.widgets import (
     JSCalendarRecurrenceWidget,
     RecurrenceWidget,
     find_recurrence_i18n_js_catalog,
@@ -149,6 +149,31 @@ def test_jscalendar_field_deconstruct_and_formfield():
     assert isinstance(form_field.widget, JSCalendarRecurrenceWidget)
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "RRULE:FREQ=DAILY;COUNT=2",
+        '{"@type":"Event","recurrenceRules":[{"frequency":"daily","count":2}]}',
+    ],
+)
+def test_native_model_form_save_and_json_lookups(payload):
+    form_class = forms.modelform_factory(NativeJSCalendarEvent, fields=("title", "recurs"))
+    form = form_class(data={"title": "Standup", "recurs": payload})
+    assert form.is_valid(), form.errors
+    event = form.save()
+
+    deferred = NativeJSCalendarEvent.objects.only("title").get(pk=event.pk)
+    assert deferred.recurs.recurrence_rules[0].count == 2
+    assert (
+        NativeJSCalendarEvent.objects.values_list(
+            "recurs__recurrenceRules__0__count", flat=True
+        ).get(pk=event.pk)
+        == 2
+    )
+    assert NativeJSCalendarEvent.objects.get(recurs__recurrenceRules__0__count=2).pk == event.pk
+
+
 def test_jscalendar_form_field_validation():
     form_field = JSCalendarRecurrenceFormField(
         frequencies=[Frequency.WEEKLY, recurrence.DAILY, "monthly"],
@@ -234,7 +259,7 @@ def test_web_component_widget_rendering_and_media():
         JSCalendarRecurrence(recurrence_rules=[RecurrenceRule(frequency="weekly")]),
         attrs={"id": "id_recurs"},
     )
-    assert "<dj-recurrence-widget" in rendered_5545
+    assert "<django-recur-widget" in rendered_5545
     assert 'data-output-format="rfc5545"' in rendered_5545
     assert "RRULE:FREQ=WEEKLY" in rendered_5545
 
@@ -255,7 +280,7 @@ def test_web_component_widget_rendering_and_media():
         attrs={"id": "id_schedule"},
     )
     unescaped = html.unescape(rendered_8984)
-    assert "<dj-recurrence-widget" in unescaped
+    assert "<django-recur-widget" in unescaped
     assert 'data-output-format="rfc8984"' in unescaped
     assert '"frequency": "daily"' in unescaped
 

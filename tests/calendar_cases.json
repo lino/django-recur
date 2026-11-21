@@ -1,0 +1,93 @@
+{
+  "foldedBerlin": {
+    "icalendar": "DTSTART;TZID=Europe/Berlin:20260322T090000\r\nRRULE:FREQ=WEEKLY;\r\n COUNT=3\r\nEXDATE:20260405T070000Z\r\nRDATE;TZID=Europe/Berlin:20260405T090000",
+    "jscalendar": {
+      "@type": "Event",
+      "start": "2026-03-22T09:00:00",
+      "timeZone": "Europe/Berlin",
+      "recurrenceRules": [{"@type": "RecurrenceRule", "frequency": "weekly", "count": 3}],
+      "recurrenceOverrides": {"2026-04-05T09:00:00": {"excluded": true}}
+    },
+    "occurrencesUTC": ["2026-03-22T08:00:00Z", "2026-03-29T07:00:00Z"]
+  },
+  "localUntil": [
+    {
+      "description": "New York before the 2007 US DST rule",
+      "zone": "America/New_York",
+      "local": "2006-03-15T09:00:00",
+      "utc": "20060315T140000Z"
+    },
+    {
+      "description": "New York after the 2007 US DST rule",
+      "zone": "America/New_York",
+      "local": "2007-03-15T09:00:00",
+      "utc": "20070315T130000Z"
+    },
+    {
+      "description": "New York spring gap uses the pre-transition offset",
+      "zone": "America/New_York",
+      "local": "2007-03-11T02:30:00",
+      "utc": "20070311T073000Z"
+    },
+    {
+      "description": "New York autumn overlap chooses the first occurrence",
+      "zone": "America/New_York",
+      "local": "2007-11-04T01:30:00",
+      "utc": "20071104T053000Z"
+    },
+    {
+      "description": "Lord Howe half-hour overlap chooses the first occurrence",
+      "zone": "Australia/Lord_Howe",
+      "local": "2020-04-05T01:45:00",
+      "utc": "20200404T144500Z"
+    },
+    {
+      "description": "Apia skipped an entire date",
+      "zone": "Pacific/Apia",
+      "local": "2011-12-30T09:00:00",
+      "utc": "20111230T190000Z"
+    },
+    {
+      "description": "Apia immediately after the international date line move",
+      "zone": "Pacific/Apia",
+      "local": "2011-12-31T09:00:00",
+      "utc": "20111230T190000Z"
+    },
+    {
+      "description": "Kathmandu skipped fifteen minutes when it changed offsets",
+      "zone": "Asia/Kathmandu",
+      "local": "1986-01-01T00:05:00",
+      "utc": "19851231T183500Z"
+    },
+    {
+      "description": "Kathmandu quarter-hour offset",
+      "zone": "Asia/Kathmandu",
+      "local": "1986-01-02T09:00:00",
+      "utc": "19860102T031500Z"
+    },
+    {
+      "description": "New York's January 1974 emergency DST transition",
+      "zone": "America/New_York",
+      "local": "1974-01-07T09:00:00",
+      "utc": "19740107T130000Z"
+    },
+    {
+      "description": "Paris used a UTC offset with seconds in 1900",
+      "zone": "Europe/Paris",
+      "local": "1900-01-01T09:00:00",
+      "utc": "19000101T085039Z"
+    },
+    {
+      "description": "São Paulo still observed DST in 2018",
+      "zone": "America/Sao_Paulo",
+      "local": "2018-11-15T09:00:00",
+      "utc": "20181115T110000Z"
+    },
+    {
+      "description": "São Paulo abolished DST in 2019",
+      "zone": "America/Sao_Paulo",
+      "local": "2019-11-15T09:00:00",
+      "utc": "20191115T120000Z"
+    }
+  ]
+}

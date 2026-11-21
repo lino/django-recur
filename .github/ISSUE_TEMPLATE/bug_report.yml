@@ -1,12 +1,12 @@
 name: Bug Report
-description: Report a bug in django-recurrence-jscalendar, the compatibility layer, or the Web Component widget.
+description: Report a bug in django-recur, the compatibility layer, or the Web Component widget.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to report a bug in **django-recurrence-jscalendar**!
+        Thank you for taking the time to report a bug in **django-recur**!
   - type: textarea
     id: description
     attributes:
@@ -21,7 +21,7 @@ body:
       description: Provide a code snippet, RFC 8984 JSON payload, or RFC 5545 RRULE string that reproduces the issue.
       placeholder: |
         ```python
-        from dj_recurrence.rfc8984 import JSCalendarRecurrence
+        from django_recur.rfc8984 import JSCalendarRecurrence
         ...
         ```
     validations:
@@ -38,19 +38,19 @@ body:
     attributes:
       label: Affected Component
       options:
-        - "dj_recurrence (RFC 8984 JSCalendar Engine)"
-        - "dj_recurrence (RFC 5545 Parser / Mapper)"
+        - "django_recur (RFC 8984 JSCalendar Engine)"
+        - "django_recur (RFC 5545 Parser / Mapper)"
         - "recurrence (django-recurrence Compatibility Layer)"
         - "Django Model Fields / Forms"
         - "migrate_recurrences Management Command"
-        - "TypeScript Web Component Widget (<dj-recurrence-widget>)"
+        - "TypeScript Web Component Widget (<django-recur-widget>)"
         - "Documentation"
     validations:
       required: true
   - type: input
     id: versions
     attributes:
-      label: Environment (Python, Django, django-recurrence-jscalendar versions)
-      placeholder: "Python 3.12, Django 5.1, django-recurrence-jscalendar 2.0.0"
+      label: Environment (Python, Django, django-recur versions)
+      placeholder: "Python 3.12, Django 5.1, django-recur 2.0.0"
     validations:
       required: true

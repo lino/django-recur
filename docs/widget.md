@@ -1,13 +1,13 @@
-# TypeScript Web Component Widget (`<dj-recurrence-widget>`)
+# TypeScript Web Component Widget (`<django-recur-widget>`)
 
-`django-recurrence-jscalendar` replaces the legacy prototype-based JavaScript widget from `django-recurrence` with a zero-dependency **Custom Element (`<dj-recurrence-widget>`)** authored in strict TypeScript and bundled with Vite.
+`django-recur` replaces the legacy prototype-based JavaScript widget from `django-recurrence` with a zero-dependency **Custom Element (`<django-recur-widget>`)** authored in strict TypeScript and bundled with Vite.
 
 ---
 
 ## Architecture
 
-1. **Progressive Enhancement**: Both `recurrence.forms.RecurrenceWidget` and `dj_recurrence.widgets.JSCalendarRecurrenceWidget` render a standard `<textarea class="recurrence-widget">` wrapped inside `<dj-recurrence-widget data-output-format="...">`.
-2. **Encapsulated Shadow DOM UI**: When `recurrence-widget.js` loads in the browser, `<dj-recurrence-widget>` upgrades automatically, attaches an open Shadow DOM, hides the underlying `<textarea>` visually, and renders an accessible interactive builder for:
+1. **Progressive Enhancement**: Both `recurrence.forms.RecurrenceWidget` and `django_recur.widgets.JSCalendarRecurrenceWidget` render a standard `<textarea class="recurrence-widget">` wrapped inside `<django-recur-widget data-output-format="...">`.
+2. **Encapsulated Shadow DOM UI**: When `recurrence-widget.js` loads in the browser, `<django-recur-widget>` upgrades automatically, attaches an open Shadow DOM, hides the underlying `<textarea>` visually, and renders an accessible interactive builder for:
    - **Inclusion & Exclusion Rules (`recurrenceRules` / `excludedRecurrenceRules`)**: Frequency (`yearly`, `monthly`, `weekly`, `daily`, `hourly`, `minutely`, `secondly`), interval, weekday chips (`mo`–`su`), relative `NDay` (`nthOfPeriod`, e.g., `1st Monday`, `Last Friday`), month-day lists (`byMonthDay`), months (`byMonth`), RFC 8984 `skip` strategy (`omit`, `backward`, `forward`), and end conditions (`count` or `until`).
    - **Inclusion & Exclusion Dates (`recurrenceOverrides` / `RDATE` / `EXDATE`)**: Interactive date picker for adding one-off inclusion or exclusion dates.
    - **Live Human-Readable Summary & Format Inspector**: Displays a live summary of each rule alongside a collapsible RFC 8984 JSON / RFC 5545 `RRULE` inspector.
@@ -24,8 +24,8 @@ The widget is automatically attached to `RecurrenceField` and `JSCalendarRecurre
 
 ```python
 from django import forms
-from dj_recurrence.forms import JSCalendarRecurrenceFormField
-from dj_recurrence.widgets import JSCalendarRecurrenceWidget, RecurrenceWidget
+from django_recur.forms import JSCalendarRecurrenceFormField
+from django_recur.widgets import JSCalendarRecurrenceWidget, RecurrenceWidget
 
 
 class EventForm(forms.Form):
@@ -50,10 +50,10 @@ Remember to include `{{ form.media }}` in templates outside the Django Admin:
 
 ## Custom Events & DOM API
 
-`<dj-recurrence-widget>` dispatches a bubbling, composed CustomEvent named `dj-recurrence:change` whenever rules or overrides are modified:
+`<django-recur-widget>` dispatches a bubbling, composed CustomEvent named `django-recur:change` whenever rules or overrides are modified:
 
 ```javascript
-document.addEventListener("dj-recurrence:change", (event) => {
+document.addEventListener("django-recur:change", (event) => {
     console.log("RFC 8984 JSCalendar state:", event.detail.jscalendar);
     console.log("Serialized form value:", event.detail.serialized);
 });
@@ -62,7 +62,7 @@ document.addEventListener("dj-recurrence:change", (event) => {
 You can also read or update the widget state programmatically in JavaScript/TypeScript:
 
 ```javascript
-const widget = document.querySelector("dj-recurrence-widget");
+const widget = document.querySelector("django-recur-widget");
 
 // Read the current RFC 8984 JSCalendarRecurrenceData object
 const state = widget.value;
@@ -85,17 +85,17 @@ widget.value = {
 
 ## Styling & Dark Mode (CSS Custom Properties)
 
-`<dj-recurrence-widget>` inherits Django Admin's CSS variables (`--body-bg`, `--body-fg`, `--border-color`, `--primary`, `--delete-button-bg`) out of the box, and exposes dedicated custom properties for custom themes:
+`<django-recur-widget>` inherits Django Admin's CSS variables (`--body-bg`, `--body-fg`, `--border-color`, `--primary`, `--delete-button-bg`) out of the box, and exposes dedicated custom properties for custom themes:
 
 ```css
-dj-recurrence-widget {
-    --dj-recurrence-bg: #ffffff;
-    --dj-recurrence-fg: #1f2937;
-    --dj-recurrence-border: #d1d5db;
-    --dj-recurrence-primary: #2563eb;
-    --dj-recurrence-danger: #dc2626;
-    --dj-recurrence-muted: #6b7280;
-    --dj-recurrence-card-bg: #f9fafb;
+django-recur-widget {
+    --django-recur-bg: #ffffff;
+    --django-recur-fg: #1f2937;
+    --django-recur-border: #d1d5db;
+    --django-recur-primary: #2563eb;
+    --django-recur-danger: #dc2626;
+    --django-recur-muted: #6b7280;
+    --django-recur-card-bg: #f9fafb;
 }
 ```
 

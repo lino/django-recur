@@ -28,7 +28,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --locked --python 3.12
 
       - name: Run Ruff linter
         run: uv run ruff check src tests
@@ -57,7 +57,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run TypeScript typecheck
         run: npm run typecheck
@@ -76,7 +76,26 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         django-version: ["4.2", "5.0", "5.1", "5.2"]
+        exclude:
+          - python-version: "3.13"
+            django-version: "4.2"
+          - python-version: "3.13"
+            django-version: "5.0"
         include:
+          - python-version: "3.14"
+            django-version: "5.2"
+          - python-version: "3.12"
+            django-version: "6.0"
+          - python-version: "3.13"
+            django-version: "6.0"
+          - python-version: "3.14"
+            django-version: "6.0"
+          - python-version: "3.12"
+            django-version: "6.1"
+          - python-version: "3.13"
+            django-version: "6.1"
+          - python-version: "3.14"
+            django-version: "6.1"
           - python-version: "3.12"
             django-version: "main"
             experimental: true
@@ -98,7 +117,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --dev --python ${{ matrix.python-version }}
+          uv sync --locked --python ${{ matrix.python-version }}
           if [ "${{ matrix.django-version }}" = "main" ]; then
             uv pip install --prerelease=allow "https://github.com/django/django/archive/main.tar.gz"
           else
@@ -106,11 +125,28 @@ jobs:
           fi
 
       - name: Run pytest with coverage
+        env:
+          EXPECTED_DJANGO: ${{ matrix.django-version }}
         run: |
-          uv run pytest --cov-report=xml --cov-report=term-missing
+          uv run --no-sync python - <<'PY'
+          import json
+          import os
+          from importlib.metadata import distribution
+
+          import django
+
+          expected = os.environ["EXPECTED_DJANGO"]
+          print(f"Django {django.get_version()} (matrix: {expected})")
+          if expected == "main":
+              source = json.loads(distribution("Django").read_text("direct_url.json") or "{}")
+              assert source.get("url") == "https://github.com/django/django/archive/main.tar.gz"
+          else:
+              assert ".".join(map(str, django.VERSION[:2])) == expected
+          PY
+          uv run --no-sync pytest --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.12' && matrix.django-version == '5.1'
+        if: matrix.python-version == '3.14' && matrix.django-version == '6.1'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -118,5 +154,5 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build distribution artifacts
-        if: matrix.python-version == '3.12' && matrix.django-version == '5.1'
+        if: matrix.python-version == '3.14' && matrix.django-version == '6.1'
         run: uv build

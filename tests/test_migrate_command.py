@@ -12,12 +12,14 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import models
+from django.test import override_settings
 
 import recurrence
 from tests.models import (
     EventWithJSCalendarStorage,
     EventWithNoNulls,
     EventWithNulls,
+    NativeJSCalendarEvent,
 )
 
 
@@ -68,6 +70,7 @@ def test_migrate_recurrences_dry_run_and_live_migration():
         model_spec="tests.EventWithNoNulls.recurs",
         include_defaults=True,
         json_output=True,
+        batch_size=1,
         stdout=out_live,
     )
     live_report = json.loads(out_live.getvalue())
@@ -119,6 +122,86 @@ def test_migrate_recurrences_dry_run_and_live_migration():
     )
     rollback_idem_report = json.loads(out_rollback_idem.getvalue())
     assert rollback_idem_report["already_target_format"] == 1
+
+
+@pytest.mark.django_db
+def test_native_json_migration_converts_string_values_and_rejects_rollback():
+    field = NativeJSCalendarEvent._meta.get_field("recurs")
+    event = NativeJSCalendarEvent.objects.create(recurs=None)
+    manager = NativeJSCalendarEvent.objects.filter(pk=event.pk)
+    manager.update(
+        **{field.attname: models.Value("RRULE:FREQ=DAILY;COUNT=2", output_field=models.JSONField())}
+    )
+
+    with pytest.raises(CommandError, match="legacy RecurrenceField text column"):
+        call_command(
+            "migrate_recurrences",
+            model_spec="tests.NativeJSCalendarEvent.recurs",
+            target_format="rfc5545",
+        )
+
+    out = StringIO()
+    call_command(
+        "migrate_recurrences",
+        model_spec="tests.NativeJSCalendarEvent.recurs",
+        include_defaults=True,
+        json_output=True,
+        stdout=out,
+    )
+    assert json.loads(out.getvalue())["migrated"] == 1
+    assert json.loads(_get_raw_recurs(NativeJSCalendarEvent, event.pk))["recurrenceRules"][0] == {
+        "@type": "RecurrenceRule",
+        "frequency": "daily",
+        "interval": 1,
+        "rscale": "gregorian",
+        "skip": "omit",
+        "firstDayOfWeek": "mo",
+        "count": 2,
+    }
+
+
+@pytest.mark.django_db
+@override_settings(TIME_ZONE="Europe/London", RECURRENCE_USE_TZ=False)
+def test_text_migration_preserves_legacy_summer_time_occurrences():
+    event = EventWithNoNulls.objects.create(
+        recurs="DTSTART:20260405T080000Z\nRRULE:FREQ=WEEKLY;COUNT=3"
+    )
+    expected = list(event.recurs.occurrences())
+    call_command("migrate_recurrences", model_spec="tests.EventWithNoNulls.recurs")
+    event.refresh_from_db()
+    assert list(event.recurs.occurrences()) == expected
+
+
+@pytest.mark.django_db
+def test_migration_leaves_lossy_import_untouched_and_reports_lossy_rollback():
+    imports = EventWithNulls.objects.create(recurs=None)
+    date_only = "DTSTART;VALUE=DATE:20000229\nRRULE:FREQ=DAILY;COUNT=2"
+    EventWithNulls.objects.filter(pk=imports.pk).update(recurs=date_only)
+    out = StringIO()
+    call_command(
+        "migrate_recurrences", model_spec="tests.EventWithNulls", json_output=True, stdout=out
+    )
+    details = json.loads(out.getvalue())
+    assert details["migrated"] == 0
+    assert "DATE values" in details["error_details"][0]
+    assert _get_raw_recurs(EventWithNulls, imports.pk) == date_only
+
+    rollback = EventWithNoNulls.objects.create(recurs="RRULE:FREQ=DAILY;COUNT=2")
+    original = json.dumps({"start": "2026-03-29T10:00:00.5", "timeZone": "Europe/Berlin"})
+    EventWithNoNulls.objects.filter(pk=rollback.pk).update(recurs=original)
+    options = {"model_spec": "tests.EventWithNoNulls", "target_format": "rfc5545"}
+    with pytest.raises(CommandError, match="fractional seconds"):
+        call_command("migrate_recurrences", strict=True, **options)
+    assert _get_raw_recurs(EventWithNoNulls, rollback.pk) == original
+
+    out = StringIO()
+    call_command("migrate_recurrences", json_output=True, stdout=out, **options)
+    details = json.loads(out.getvalue())
+    assert details["conversion_warnings"] == details["migrated"] == 1
+    assert (
+        _get_raw_recurs(EventWithNoNulls, rollback.pk)
+        == "DTSTART;TZID=Europe/Berlin:20260329T100000"
+    )
 
 
 @pytest.mark.django_db

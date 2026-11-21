@@ -39,7 +39,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Install package and Zensical
-        run: uv sync --dev
+        run: uv sync --locked --python 3.12
 
       - name: Build Zensical documentation site
         run: uv run zensical build --clean

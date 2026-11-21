@@ -1,20 +1,20 @@
 # Quickstart
 
-`django-recurrence-jscalendar` supports two ways of working with recurring events in Django:
+`django-recur` supports two ways of working with recurring events in Django:
 
-1. **Modern Native RFC 8984 (JSCalendar) Mode** via `dj_recurrence`
+1. **Modern Native RFC 8984 (JSCalendar) Mode** via `django_recur`
 2. **Drop-In `django-recurrence` Compatibility Mode** via `recurrence`
 
 ---
 
-## 1. Modern Native RFC 8984 Mode (`dj_recurrence`)
+## 1. Modern Native RFC 8984 Mode (`django_recur`)
 
 Use `JSCalendarRecurrenceField` on your Django models to store recurrences as native JSON (`JSONField`) conforming to RFC 8984 §4.3:
 
 ```python
 from datetime import datetime
 from django.db import models
-from dj_recurrence import (
+from django_recur import (
     DayOfWeek,
     Frequency,
     JSCalendarRecurrence,
@@ -73,7 +73,7 @@ parsed = JSCalendarRecurrence.from_icalendar(ical_text)
 
 # Inspect a detailed conversion report (lossless / conditional / lossy warnings)
 ical_text, report = schedule.to_icalendar_with_report()
-assert report.is_lossless
+assert report.lossless
 ```
 
 ---

@@ -1,5 +1,5 @@
 name: Feature Request
-description: Propose a new feature or improvement for django-recurrence-jscalendar.
+description: Propose a new feature or improvement for django-recur.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:

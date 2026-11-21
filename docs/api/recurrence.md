@@ -1,6 +1,6 @@
 # `recurrence` Drop-In Compatibility API Reference
 
-The `recurrence` package provides 100% drop-in compatibility with [`jazzband/django-recurrence`](https://github.com/jazzband/django-recurrence) while delegating occurrence evaluation and validation to the RFC 8984 (`dj_recurrence`) engine.
+The `recurrence` package provides 100% drop-in compatibility with [`jazzband/django-recurrence`](https://github.com/jazzband/django-recurrence) while delegating occurrence evaluation and validation to the RFC 8984 (`django_recur`) engine.
 
 ---
 
@@ -14,7 +14,7 @@ Represents a weekday with an optional relative occurrence index:
 - `number`: `0` (Monday) through `6` (Sunday)
 - `index`: Optional non-zero integer (`1`, `2`, `-1`, etc.)
 - `weekday(index: int) -> Weekday`: Return a copy with `index` set (e.g. `recurrence.MO(2)` or `recurrence.FR(-1)`).
-- `to_nday() -> dj_recurrence.NDay`: Convert to an RFC 8984 `NDay` instance.
+- `to_nday() -> django_recur.NDay`: Convert to an RFC 8984 `NDay` instance.
 - `from_nday(cls, nday: NDay) -> Weekday`: Construct from an RFC 8984 `NDay` instance.
 
 Predefined constants:
@@ -26,7 +26,7 @@ Predefined constants:
 
 ### `recurrence.Rule`
 
-Represents an inclusion or exclusion rule (`RRULE` or `EXRULE`) backed by `dj_recurrence.RecurrenceRule`:
+Represents an inclusion or exclusion rule (`RRULE` or `EXRULE`) backed by `django_recur.RecurrenceRule`:
 
 ```python
 Rule(
@@ -53,8 +53,8 @@ Methods:
 
 - `to_text(short: bool = False) -> str`
 - `to_dateutil_rrule(dtstart=None, dtend=None, cache=False)`
-- `to_jscalendar_rule() -> dj_recurrence.RecurrenceRule`
-- `from_jscalendar_rule(cls, rule: dj_recurrence.RecurrenceRule) -> Rule`
+- `to_jscalendar_rule() -> django_recur.RecurrenceRule`
+- `from_jscalendar_rule(cls, rule: django_recur.RecurrenceRule) -> Rule`
 
 ---
 
@@ -82,8 +82,8 @@ Methods:
 - `before(dt, inc=False, dtstart=None, dtend=None, cache=False) -> datetime | None`
 - `count(dtstart=None, dtend=None, cache=False) -> int`
 - `to_dateutil_rruleset(dtstart=None, dtend=None, cache=False)`
-- `to_jscalendar_obj() -> dj_recurrence.JSCalendarRecurrence`
-- `from_jscalendar_obj(cls, jscal: dj_recurrence.JSCalendarRecurrence) -> Recurrence`
+- `to_jscalendar_obj() -> django_recur.JSCalendarRecurrence`
+- `from_jscalendar_obj(cls, jscal: django_recur.JSCalendarRecurrence) -> Recurrence`
 - `to_jscalendar_dict(include_defaults: bool = False) -> dict[str, Any]`
 - `to_jscalendar_json(include_defaults: bool = False) -> str`
 
@@ -103,5 +103,5 @@ Methods:
 
 - `recurrence.fields.RecurrenceField(include_dtstart=True, storage_format=None, **kwargs)`: Stores recurrence rules in a database text column while transparently reading both RFC 5545 strings and RFC 8984 JSON.
 - `recurrence.forms.RecurrenceField`: Form field validating and normalizing recurrence inputs.
-- `recurrence.forms.RecurrenceWidget`: Progressive-enhancement Web Component widget (`<dj-recurrence-widget>`).
+- `recurrence.forms.RecurrenceWidget`: Progressive-enhancement Web Component widget (`<django-recur-widget>`).
 - `recurrence.models.Recurrence`, `recurrence.models.Rule`, `recurrence.models.Date`, `recurrence.models.Param`: Relational models and managers (`RecurrenceManager`, `RuleManager`) preserved for legacy relational schemas.

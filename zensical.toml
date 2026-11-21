@@ -1,10 +1,10 @@
 [project]
-site_name = "django-recurrence-jscalendar"
+site_name = "django-recur"
 site_description = "Modern reimplementation of django-recurrence powered by RFC 8984 (JSCalendar), with full RFC 5545 interoperability, drop-in compatibility, and a TypeScript Web Component widget."
 site_author = "Lino"
-site_url = "https://lino.github.io/django-recurrence-jscalendar/"
-repo_url = "https://github.com/lino/django-recurrence-jscalendar"
-repo_name = "lino/django-recurrence-jscalendar"
+site_url = "https://lino.github.io/django-recur/"
+repo_url = "https://github.com/lino/django-recur"
+repo_name = "lino/django-recur"
 copyright = "Copyright &copy; 2026 Lino & Contributors"
 nav = [
     { "Home" = "index.md" },
@@ -16,7 +16,7 @@ nav = [
     { "Migration Guide" = "migration-guide.md" },
     { "TypeScript Web Component Widget" = "widget.md" },
     { "API Reference" = [
-        { "dj_recurrence (Modern API)" = "api/dj-recurrence.md" },
+        { "django_recur (Modern API)" = "api/django-recur.md" },
         { "recurrence (Compatibility API)" = "api/recurrence.md" },
     ] },
     { "Contributing" = "contributing.md" },

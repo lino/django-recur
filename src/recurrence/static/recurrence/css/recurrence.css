@@ -1,29 +1,29 @@
-/* django-recurrence-jscalendar CSS
- * Supports both the modern <dj-recurrence-widget> Custom Element (via Shadow DOM
+/* django-recur CSS
+ * Supports both the modern <django-recur-widget> Custom Element (via Shadow DOM
  * and light-DOM tokens) and legacy div.recurrence-widget selectors.
  */
 
-dj-recurrence-widget {
+django-recur-widget {
     display: block;
     max-width: 100%;
-    --dj-recurrence-bg: var(--body-bg, #ffffff);
-    --dj-recurrence-fg: var(--body-fg, #1f2937);
-    --dj-recurrence-border: var(--border-color, #d1d5db);
-    --dj-recurrence-primary: var(--primary, #2563eb);
-    --dj-recurrence-danger: var(--delete-button-bg, #dc2626);
-    --dj-recurrence-muted: var(--body-quiet-color, #6b7280);
-    --dj-recurrence-card-bg: var(--darkened-bg, #f9fafb);
+    --django-recur-bg: var(--body-bg, #ffffff);
+    --django-recur-fg: var(--body-fg, #1f2937);
+    --django-recur-border: var(--border-color, #d1d5db);
+    --django-recur-primary: var(--primary, #2563eb);
+    --django-recur-danger: var(--delete-button-bg, #dc2626);
+    --django-recur-muted: var(--body-quiet-color, #6b7280);
+    --django-recur-card-bg: var(--darkened-bg, #f9fafb);
 }
 
 @media (prefers-color-scheme: dark) {
-    dj-recurrence-widget {
-        --dj-recurrence-bg: var(--body-bg, #111827);
-        --dj-recurrence-fg: var(--body-fg, #f9fafb);
-        --dj-recurrence-border: var(--border-color, #374151);
-        --dj-recurrence-primary: var(--primary, #3b82f6);
-        --dj-recurrence-danger: var(--delete-button-bg, #ef4444);
-        --dj-recurrence-muted: var(--body-quiet-color, #9ca3af);
-        --dj-recurrence-card-bg: var(--darkened-bg, #1f2937);
+    django-recur-widget {
+        --django-recur-bg: var(--body-bg, #111827);
+        --django-recur-fg: var(--body-fg, #f9fafb);
+        --django-recur-border: var(--border-color, #374151);
+        --django-recur-primary: var(--primary, #3b82f6);
+        --django-recur-danger: var(--delete-button-bg, #ef4444);
+        --django-recur-muted: var(--body-quiet-color, #9ca3af);
+        --django-recur-card-bg: var(--darkened-bg, #1f2937);
     }
 }
 

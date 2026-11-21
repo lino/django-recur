@@ -11,11 +11,15 @@ from typing import Any
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
-from django.db import models, transaction
+from django.db import models, router, transaction
 
-from dj_recurrence import exceptions
-from dj_recurrence.fields import JSCalendarRecurrenceField
-from dj_recurrence.rfc5545 import deserialize_any
+from django_recur import exceptions
+from django_recur.fields import JSCalendarRecurrenceField
+from django_recur.rfc5545 import (
+    convert_icalendar_to_jscalendar_with_report,
+    convert_jscalendar_to_icalendar_with_report,
+    deserialize_any,
+)
 
 
 def is_jscalendar_payload(raw_value: Any) -> bool:
@@ -142,6 +146,21 @@ class Command(BaseCommand):
         json_output: bool = options["json_output"]
 
         target_fields = self._discover_target_fields(model_spec)
+        if batch_size < 1:
+            raise CommandError("--batch-size must be at least 1.")
+        if target_format == "rfc5545":
+            native_fields = [
+                field for _, field in target_fields if isinstance(field, JSCalendarRecurrenceField)
+            ]
+            if model_spec and native_fields:
+                raise CommandError(
+                    "RFC5545 rollback requires a legacy RecurrenceField text column."
+                )
+            target_fields = [
+                (model_cls, field)
+                for model_cls, field in target_fields
+                if not isinstance(field, JSCalendarRecurrenceField)
+            ]
 
         summary: dict[str, Any] = {
             "target_format": target_format,
@@ -150,6 +169,8 @@ class Command(BaseCommand):
             "scanned": 0,
             "migrated": 0,
             "already_target_format": 0,
+            "conversion_warnings": 0,
+            "warning_details": [],
             "skipped_empty": 0,
             "errors": 0,
             "error_details": [],
@@ -159,52 +180,88 @@ class Command(BaseCommand):
             include_dtstart = getattr(field, "include_dtstart", True)
             is_json_field = isinstance(field, JSCalendarRecurrenceField)
 
-            raw_expr: Any = models.Func(
+            output_field = models.JSONField() if is_json_field else models.TextField()
+            raw_expr = models.ExpressionWrapper(
                 models.F(field.name),
-                template="%(expressions)s",
-                output_field=models.TextField(),
+                output_field=output_field,
             )
-            qs = model_cls._default_manager.annotate(_raw_recurrence_val=raw_expr).order_by("pk")
-            rows = list(qs.values_list("pk", "_raw_recurrence_val").iterator(chunk_size=batch_size))
+            db = router.db_for_write(model_cls)
+            manager = model_cls._base_manager.db_manager(db)
+            qs = manager.annotate(_raw_recurrence_val=raw_expr).order_by("pk")
+            if not dry_run:
+                qs = qs.select_for_update()
+            rows = qs.values_list("pk", "_raw_recurrence_val")
 
-            with transaction.atomic():
-                for pk, raw_val in rows:
-                    summary["scanned"] += 1
+            with transaction.atomic(using=db):
+                page = list(rows[:batch_size])
+                while page:
+                    for pk, raw_val in page:
+                        summary["scanned"] += 1
+                        if raw_val is None or raw_val in ("", "null"):
+                            summary["skipped_empty"] += 1
+                            continue
 
-                    if raw_val is None or raw_val == "" or raw_val == "null":
-                        summary["skipped_empty"] += 1
-                        continue
+                        detail = f"{model_cls._meta.label} pk={pk} field={field.name}"
+                        currently_jscalendar = is_jscalendar_payload(raw_val)
+                        try:
+                            if currently_jscalendar:
+                                rec_obj = deserialize_any(raw_val, include_dtstart=include_dtstart)
+                            else:
+                                report = convert_icalendar_to_jscalendar_with_report(
+                                    raw_val, include_dtstart=include_dtstart
+                                )
+                                rec_obj = report.output
+                                if target_format == "rfc8984" and not report.lossless:
+                                    raise exceptions.ConversionError(
+                                        "Lossy import: "
+                                        + "; ".join(issue.message for issue in report.issues)
+                                    )
 
-                    currently_jscalendar = is_jscalendar_payload(raw_val)
-                    try:
-                        rec_obj = deserialize_any(raw_val, include_dtstart=include_dtstart)
-                    except (exceptions.RecurrenceError, ValueError, TypeError) as exc:
-                        summary["errors"] += 1
-                        detail = f"{model_cls._meta.label} pk={pk} field={field.name}: {exc}"
-                        summary["error_details"].append(detail)
-                        if strict:
-                            raise CommandError(detail) from exc
-                        continue
+                            already_target_format = (
+                                (
+                                    isinstance(raw_val, dict)
+                                    if is_json_field
+                                    else currently_jscalendar
+                                )
+                                if target_format == "rfc8984"
+                                else not currently_jscalendar
+                            )
+                            if already_target_format:
+                                summary["already_target_format"] += 1
+                                continue
 
-                    if target_format == "rfc8984" and currently_jscalendar:
-                        summary["already_target_format"] += 1
-                        continue
-                    if target_format == "rfc5545" and not currently_jscalendar:
-                        summary["already_target_format"] += 1
-                        continue
+                            if target_format == "rfc8984":
+                                new_val = (
+                                    rec_obj.to_jscalendar(include_defaults=include_defaults)
+                                    if is_json_field
+                                    else rec_obj.to_json(include_defaults=include_defaults)
+                                )
+                            else:
+                                report = convert_jscalendar_to_icalendar_with_report(
+                                    rec_obj, strict=strict, include_rscale=True
+                                )
+                                new_val = report.output
+                                if not report.lossless:
+                                    summary["conversion_warnings"] += 1
+                                    summary["warning_details"].append(
+                                        f"{detail}: "
+                                        + "; ".join(issue.message for issue in report.issues)
+                                    )
+                        except (exceptions.RecurrenceError, ValueError, TypeError) as exc:
+                            summary["errors"] += 1
+                            message = f"{detail}: {exc}"
+                            summary["error_details"].append(message)
+                            if strict:
+                                raise CommandError(message) from exc
+                            continue
 
-                    if target_format == "rfc8984":
-                        new_val: Any = (
-                            rec_obj.to_jscalendar(include_defaults=include_defaults)
-                            if is_json_field
-                            else rec_obj.to_json(include_defaults=include_defaults)
-                        )
-                    else:
-                        new_val = rec_obj.to_icalendar()
+                        if not dry_run:
+                            manager.filter(pk=pk).update(
+                                **{field.attname: models.Value(new_val, output_field=output_field)}
+                            )
+                        summary["migrated"] += 1
 
-                    if not dry_run:
-                        model_cls._default_manager.filter(pk=pk).update(**{field.attname: new_val})
-                    summary["migrated"] += 1
+                    page = list(rows.filter(pk__gt=page[-1][0])[:batch_size])
 
         if json_output:
             output_str = json.dumps(summary, indent=2)
@@ -219,9 +276,11 @@ class Command(BaseCommand):
                 f"migrated={summary['migrated']}, "
                 f"already_target_format={summary['already_target_format']}, "
                 f"skipped_empty={summary['skipped_empty']}, "
-                f"errors={summary['errors']}"
+                f"errors={summary['errors']}, warnings={summary['conversion_warnings']}"
             )
         )
         for err in summary["error_details"]:
             self.stderr.write(self.style.ERROR(f"  - {err}"))
+        for warning in summary["warning_details"]:
+            self.stderr.write(self.style.WARNING(f"  - {warning}"))
         return None

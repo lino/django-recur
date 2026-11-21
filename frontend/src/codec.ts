@@ -1,6 +1,6 @@
 /**
  * Bidirectional RFC 8984 (JSCalendar) <-> RFC 5545 (iCalendar) codec and
- * human-readable text formatter for the <dj-recurrence-widget> Web Component.
+ * human-readable text formatter for the <django-recur-widget> Web Component.
  */
 
 import type {
@@ -91,29 +91,38 @@ export function dateToICalendarUTC(dt: Date): string {
 }
 
 export function parseDateString(text: string): Date {
-  const cleaned = text.trim();
-  if (cleaned.includes("-")) {
-    const normalized = cleaned.includes("T") ? cleaned : `${cleaned}T00:00:00Z`;
-    const dt = new Date(normalized);
-    if (!Number.isNaN(dt.getTime())) {
-      return dt;
-    }
+  // Treat floating wall times as UTC only for component access and arithmetic.
+  const cleaned = text.trim().toUpperCase();
+  const match = /^(\d{4})-?(\d{2})-?(\d{2})(?:T(\d{2}):?(\d{2}):?(\d{2})(\.\d+)?Z?)?$/.exec(cleaned);
+  if (!match) throw new Error(`Invalid date-time: ${text}`);
+  const [, year, month, day, hour = "00", minute = "00", second = "00", fraction = ""] = match;
+  const iso = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  const date = new Date(`${iso}${fraction}Z`);
+  if (!Number.isFinite(date.getTime()) || dateToJSCalendarUTC(date).slice(0, -1) !== iso) {
+    throw new Error(`Invalid date-time: ${text}`);
   }
-  const year = Number.parseInt(cleaned.slice(0, 4), 10);
-  const month = Number.parseInt(cleaned.slice(4, 6), 10) - 1;
-  const day = Number.parseInt(cleaned.slice(6, 8), 10);
-  let hour = 0;
-  let minute = 0;
-  let second = 0;
-  if (cleaned.includes("T")) {
-    hour = Number.parseInt(cleaned.slice(9, 11), 10) || 0;
-    minute = Number.parseInt(cleaned.slice(11, 13), 10) || 0;
-    second = Number.parseInt(cleaned.slice(13, 15), 10) || 0;
-  }
-  if (cleaned.endsWith("Z")) {
-    return new Date(Date.UTC(year, month, day, hour, minute, second));
-  }
-  return new Date(year, month, day, hour, minute, second);
+  return date;
+}
+
+function zoneOffset(date: Date, timeZone: string): number {
+  const formatter = new Intl.DateTimeFormat("en", { timeZone, timeZoneName: "longOffset" });
+  const name = formatter.formatToParts(date).find(({ type }) => type === "timeZoneName")?.value;
+  if (name === "GMT") return 0;
+  const match = /^GMT([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(name ?? "");
+  if (!match) throw new Error(`Unknown offset for ${timeZone}`);
+  const [, sign, h, m, s = "0"] = match;
+  return (sign === "-" ? -1 : 1) * (Number(h) * 3600 + Number(m) * 60 + Number(s)) * 1000;
+}
+
+function wallTimeToUTC(wallTime: Date, timeZone: string): Date {
+  const ms = wallTime.getTime();
+  const day = 86_400_000;
+  const before = zoneOffset(new Date(ms - day), timeZone);
+  const after = zoneOffset(new Date(ms + day), timeZone);
+  const candidates = [before, after].map((offset) => new Date(ms - offset));
+  return candidates
+    .filter((date) => date.getTime() + zoneOffset(date, timeZone) === ms)
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? candidates[0];
 }
 
 export function parseNDayToken(token: string | number | JSCalendarNDay): JSCalendarNDay {
@@ -198,16 +207,29 @@ export function canonicalizeRule(rule: JSCalendarRecurrenceRule): JSCalendarRecu
 
 export function serializeToICalendar(schedule: JSCalendarSchedule): string {
   const lines: string[] = [];
+  const timeZone = schedule.timeZone;
+  const serializeDate = (name: string, value: string): string => {
+    const date = parseDateString(value);
+    const compact = dateToICalendarUTC(date);
+    if (value.endsWith("Z") || timeZone === "UTC") return `${name}:${compact}`;
+    const property = timeZone ? `${name};TZID=${timeZone}` : name;
+    return `${property}:${compact.slice(0, -1)}`;
+  };
 
   if (schedule.start) {
-    lines.push(`DTSTART:${dateToICalendarUTC(parseDateString(schedule.start))}`);
+    lines.push(serializeDate("DTSTART", schedule.start));
   }
   if (schedule.dtend) {
-    lines.push(`DTEND:${dateToICalendarUTC(parseDateString(schedule.dtend))}`);
+    lines.push(serializeDate("DTEND", schedule.dtend));
   }
 
   const serializeRule = (rule: JSCalendarRecurrenceRule): string => {
     const parts: string[] = [`FREQ=${rule.frequency.toUpperCase()}`];
+    if (rule.rscale) parts.unshift(`RSCALE=${rule.rscale.toUpperCase()}`);
+    if (rule.skip) {
+      if (!rule.rscale) parts.unshift("RSCALE=GREGORIAN");
+      parts.push(`SKIP=${rule.skip.toUpperCase()}`);
+    }
     if (rule.interval && rule.interval !== 1) {
       parts.push(`INTERVAL=${rule.interval}`);
     }
@@ -217,7 +239,12 @@ export function serializeToICalendar(schedule: JSCalendarSchedule): string {
     if (rule.count != null) {
       parts.push(`COUNT=${rule.count}`);
     } else if (rule.until) {
-      parts.push(`UNTIL=${dateToICalendarUTC(parseDateString(rule.until))}`);
+      const date = parseDateString(rule.until);
+      const utc = rule.until.endsWith("Z") || timeZone === "UTC";
+      const until = utc ? dateToICalendarUTC(date)
+        : timeZone ? dateToICalendarUTC(wallTimeToUTC(date, timeZone))
+        : dateToICalendarUTC(date).slice(0, -1);
+      parts.push(`UNTIL=${until}`);
     }
     if (rule.byDay && rule.byDay.length > 0) {
       parts.push(`BYDAY=${rule.byDay.map(formatNDayICalendar).join(",")}`);
@@ -256,12 +283,7 @@ export function serializeToICalendar(schedule: JSCalendarSchedule): string {
     lines.push(`EXRULE:${serializeRule(ex)}`);
   }
   for (const [dtStr, patch] of Object.entries(schedule.recurrenceOverrides ?? {})) {
-    const dtIcal = dateToICalendarUTC(parseDateString(dtStr));
-    if (patch.excluded) {
-      lines.push(`EXDATE:${dtIcal}`);
-    } else {
-      lines.push(`RDATE:${dtIcal}`);
-    }
+    lines.push(serializeDate(patch.excluded ? "EXDATE" : "RDATE", dtStr));
   }
   return lines.join("\n");
 }
@@ -277,12 +299,42 @@ export function parseICalendar(text: string): JSCalendarSchedule {
     return schedule;
   }
 
-  const pattern = /(DTSTART|DTEND|RRULE|EXRULE|RDATE|EXDATE)[^:]*:(.*)/g;
-  const matches = text.matchAll(pattern);
+  const pattern = /^(DTSTART|DTEND|RRULE|EXRULE|RDATE|EXDATE)((?:;[^:\r\n]+)?):([^\r\n]*)/gim;
+  const matches = [...text.replace(/\r?\n[ \t]/g, "").matchAll(pattern)];
+  if (matches.length === 0) throw new Error("No recurrence properties found");
+  const tzid = (parameters: string): string | undefined => {
+    const match = /(?:^|;)TZID=(?:"([^"]+)"|([^;]+))/i.exec(parameters);
+    return match?.[1] ?? match?.[2];
+  };
+  const dated = matches.filter(([, label]) => !/^(EX|R)RULE$/i.test(label));
+  const firstDate = dated.find(([, label]) => label.toUpperCase() === "DTSTART") ?? dated[0];
+  if (firstDate) {
+    schedule.timeZone = tzid(firstDate[2]) ??
+      (firstDate[3].split(",")[0].trim().toUpperCase().endsWith("Z") ? "UTC" : undefined);
+  } else if (matches.some(([, , , value]) => /(?:^|;)UNTIL=\d{8}T\d{6}Z(?:;|$)/i.test(value))) {
+    schedule.timeZone = "UTC";
+  }
+  const localDate = (value: string, params = ""): string => {
+    const date = parseDateString(value);
+    const target = schedule.timeZone;
+    const source = value.trim().toUpperCase().endsWith("Z") ? "UTC" : tzid(params);
+    if (source === target) {
+      if (source && source !== "UTC") zoneOffset(date, source);
+      return dateToJSCalendarUTC(date).slice(0, -1);
+    }
+    if (!source || !target) throw new Error("Cannot mix floating and timezone-bound dates");
+    const instant = source === "UTC" ? date : wallTimeToUTC(date, source);
+    const wallTime = new Date(instant.getTime() + zoneOffset(instant, target));
+    if (wallTimeToUTC(wallTime, target).getTime() !== instant.getTime()) {
+      throw new Error("Cannot represent the later occurrence of an ambiguous local time");
+    }
+    return dateToJSCalendarUTC(wallTime).slice(0, -1);
+  };
 
   for (const match of matches) {
-    const label = match[1];
-    const paramText = match[2].trim();
+    const label = match[1].toUpperCase();
+    const parameters = match[2];
+    const paramText = match[3].trim();
     if (!paramText) continue;
 
     if (label === "RRULE" || label === "EXRULE") {
@@ -311,7 +363,7 @@ export function parseICalendar(text: string): JSCalendarSchedule {
         } else if (key === "COUNT") {
           rule.count = Number.parseInt(values[0], 10);
         } else if (key === "UNTIL") {
-          rule.until = dateToJSCalendarUTC(parseDateString(values[0]));
+          rule.until = localDate(values[0]);
         } else if (key === "BYDAY") {
           rule.byDay = values.map((v) => parseNDayToken(v));
         } else if (key === "BYMONTH") {
@@ -338,17 +390,17 @@ export function parseICalendar(text: string): JSCalendarSchedule {
         schedule.excludedRecurrenceRules!.push(canonicalizeRule(rule));
       }
     } else if (label === "DTSTART") {
-      schedule.start = dateToJSCalendarUTC(parseDateString(paramText));
+      schedule.start = localDate(paramText, parameters);
     } else if (label === "DTEND") {
-      schedule.dtend = dateToJSCalendarUTC(parseDateString(paramText));
+      schedule.dtend = localDate(paramText, parameters);
     } else if (label === "RDATE") {
       for (const item of paramText.split(",")) {
-        const key = dateToJSCalendarUTC(parseDateString(item));
-        schedule.recurrenceOverrides![key] = {};
+        const key = localDate(item, parameters);
+        schedule.recurrenceOverrides![key] ??= {};
       }
     } else if (label === "EXDATE") {
       for (const item of paramText.split(",")) {
-        const key = dateToJSCalendarUTC(parseDateString(item));
+        const key = localDate(item, parameters);
         schedule.recurrenceOverrides![key] = { excluded: true };
       }
     }
@@ -371,12 +423,8 @@ export function deserializeSchedule(input: string | Record<string, unknown>): JS
     };
   }
   if (trimmed.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-      return normalizeScheduleObject(parsed);
-    } catch {
-      // Fallback to iCalendar parser if invalid JSON
-    }
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    return normalizeScheduleObject(parsed);
   }
   return parseICalendar(trimmed);
 }
@@ -399,15 +447,25 @@ function normalizeScheduleObject(raw: Record<string, unknown>): JSCalendarSchedu
   const overrides: Record<string, JSCalendarOverridePatch> = {};
   if (raw.recurrenceOverrides && typeof raw.recurrenceOverrides === "object") {
     for (const [k, v] of Object.entries(raw.recurrenceOverrides as Record<string, unknown>)) {
-      const isoKey = dateToJSCalendarUTC(parseDateString(k));
-      overrides[isoKey] = (v as JSCalendarOverridePatch) ?? {};
+      parseDateString(k);
+      overrides[k] = (v as JSCalendarOverridePatch) ?? {};
     }
   }
+  const start = typeof raw.start === "string" ? raw.start : undefined;
+  const dtend = typeof raw.dtend === "string" ? raw.dtend : undefined;
+  const timeZone = typeof raw.timeZone === "string" ? raw.timeZone : undefined;
+  for (const date of [start, dtend, ...[...rrules, ...exrules].map((rule) => rule.until)]) {
+    if (date) parseDateString(date);
+  }
+  if (timeZone) new Intl.DateTimeFormat("en", { timeZone });
+
   return {
+    ...raw,
     "@type": "Event",
-    start: typeof raw.start === "string" ? raw.start : undefined,
-    dtend: typeof raw.dtend === "string" ? raw.dtend : undefined,
-    timeZone: typeof raw.timeZone === "string" ? raw.timeZone : undefined,
+    start,
+    dtend,
+    timeZone,
+    includeDtstart: typeof raw.includeDtstart === "boolean" ? raw.includeDtstart : undefined,
     recurrenceRules: rrules,
     excludedRecurrenceRules: exrules,
     recurrenceOverrides: overrides,
@@ -415,21 +473,19 @@ function normalizeScheduleObject(raw: Record<string, unknown>): JSCalendarSchedu
 }
 
 export function serializeScheduleToJSCalendar(schedule: JSCalendarSchedule): JSCalendarSchedule {
-  const out: JSCalendarSchedule = { "@type": "Event" };
+  const { recurrenceRules, excludedRecurrenceRules, recurrenceOverrides, ...properties } = schedule;
+  const out: JSCalendarSchedule = { ...properties, "@type": "Event" };
   if (schedule.start) out.start = schedule.start;
   if (schedule.dtend) out.dtend = schedule.dtend;
   if (schedule.timeZone) out.timeZone = schedule.timeZone;
-  if (schedule.recurrenceRules && schedule.recurrenceRules.length > 0) {
-    out.recurrenceRules = schedule.recurrenceRules.map(canonicalizeRule);
+  if (recurrenceRules?.length) {
+    out.recurrenceRules = recurrenceRules.map(canonicalizeRule);
   }
-  if (schedule.excludedRecurrenceRules && schedule.excludedRecurrenceRules.length > 0) {
-    out.excludedRecurrenceRules = schedule.excludedRecurrenceRules.map(canonicalizeRule);
+  if (excludedRecurrenceRules?.length) {
+    out.excludedRecurrenceRules = excludedRecurrenceRules.map(canonicalizeRule);
   }
-  if (
-    schedule.recurrenceOverrides &&
-    Object.keys(schedule.recurrenceOverrides).length > 0
-  ) {
-    out.recurrenceOverrides = { ...schedule.recurrenceOverrides };
+  if (recurrenceOverrides && Object.keys(recurrenceOverrides).length > 0) {
+    out.recurrenceOverrides = { ...recurrenceOverrides };
   }
   return out;
 }

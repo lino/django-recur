@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "django-recurrence-jscalendar"
+name = "django-recur"
 version = "2.0.0"
 description = "Modern RFC 8984 (JSCalendar) & RFC 5545 reimplementation of django-recurrence with drop-in compatibility and Web Component widgets."
 readme = "README.md"
@@ -36,6 +36,8 @@ classifiers = [
     "Framework :: Django :: 5.0",
     "Framework :: Django :: 5.1",
     "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
@@ -46,6 +48,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Office/Business :: Scheduling",
@@ -58,11 +61,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lino/django-recurrence-jscalendar"
-Documentation = "https://lino.github.io/django-recurrence-jscalendar/"
-Repository = "https://github.com/lino/django-recurrence-jscalendar"
-Issues = "https://github.com/lino/django-recurrence-jscalendar/issues"
-Changelog = "https://github.com/lino/django-recurrence-jscalendar/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/lino/django-recur"
+Documentation = "https://lino.github.io/django-recur/"
+Repository = "https://github.com/lino/django-recur"
+Issues = "https://github.com/lino/django-recur/issues"
+Changelog = "https://github.com/lino/django-recur/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -80,7 +83,7 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "src/dj_recurrence",
+    "src/django_recur",
     "src/recurrence",
 ]
 
@@ -100,14 +103,14 @@ include = [
 DJANGO_SETTINGS_MODULE = "tests.settings"
 pythonpath = ["src", "."]
 testpaths = ["tests"]
-addopts = "--strict-markers -ra --cov=dj_recurrence --cov=recurrence --cov-report=term-missing"
+addopts = "--strict-markers -ra --cov=django_recur --cov=recurrence --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["src/dj_recurrence", "src/recurrence"]
+source = ["src/django_recur", "src/recurrence"]
 branch = true
 omit = [
     "src/recurrence/migrations/*",
-    "src/dj_recurrence/migrations/*",
+    "src/django_recur/migrations/*",
 ]
 
 [tool.coverage.report]
@@ -146,7 +149,7 @@ ignore = [
 [tool.mypy]
 python_version = "3.10"
 mypy_path = "src"
-packages = ["dj_recurrence", "recurrence"]
+packages = ["django_recur", "recurrence"]
 strict = false
 warn_unused_ignores = false
 warn_return_any = false

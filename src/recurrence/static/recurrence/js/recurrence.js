@@ -1,6 +1,6 @@
 /**
- * django-recurrence-jscalendar legacy namespace bootstrap.
- * The full implementation and <dj-recurrence-widget> Web Component are bundled
+ * django-recur legacy namespace bootstrap.
+ * The full implementation and <django-recur-widget> Web Component are bundled
  * into recurrence-widget.js from the TypeScript pipeline in frontend/.
  */
 (function (global) {

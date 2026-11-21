@@ -1,6 +1,6 @@
-# Migration Guide (`django-recurrence` → `django-recurrence-jscalendar`)
+# Migration Guide (`django-recurrence` → `django-recur`)
 
-`django-recurrence-jscalendar` is architected so that existing projects using [`jazzband/django-recurrence`](https://github.com/jazzband/django-recurrence) can upgrade in **three progressive stages**:
+`django-recur` is architected so that existing projects using [`jazzband/django-recurrence`](https://github.com/jazzband/django-recurrence) can upgrade in **three progressive stages**:
 
 1. **Stage 1: Zero-Change Drop-In Swap** (keep existing models, imports, and database rows).
 2. **Stage 2: In-Place Database Migration to RFC 8984 JSON** using `python manage.py migrate_recurrences`.
@@ -10,20 +10,20 @@
 
 ## Stage 1: Drop-In Package Replacement
 
-Replace `django-recurrence` in your dependencies with `django-recurrence-jscalendar`:
+Replace `django-recurrence` in your dependencies with `django-recur`:
 
 ```bash
 uv remove django-recurrence
-uv add django-recurrence-jscalendar
+uv add django-recur
 ```
 
-Add `"dj_recurrence"` alongside `"recurrence"` in `INSTALLED_APPS`:
+Add `"django_recur"` alongside `"recurrence"` in `INSTALLED_APPS`:
 
 ```python
 INSTALLED_APPS = [
     # ...
     "recurrence",
-    "dj_recurrence",
+    "django_recur",
 ]
 ```
 
@@ -31,14 +31,14 @@ INSTALLED_APPS = [
 `recurrence.fields.RecurrenceField` transparently reads:
 
 - Legacy RFC 2445 / RFC 5545 strings (`RRULE:FREQ=WEEKLY;BYDAY=MO,WE`)
-- RFC 8984 JSCalendar JSON strings (`{"@type": "JSCalendarRecurrence", ...}`)
-- Python `recurrence.Recurrence`, `recurrence.Rule`, `dj_recurrence.JSCalendarRecurrence`, or `dict` objects
+- JSCalendar recurrence JSON strings (`{"@type": "Event", ...}`)
+- Python `recurrence.Recurrence`, `recurrence.Rule`, `django_recur.JSCalendarRecurrence`, or `dict` objects
 
 ---
 
 ## Stage 2: Migrating Stored Database Rules to RFC 8984 (`migrate_recurrences`)
 
-Once `django-recurrence-jscalendar` is deployed, use the built-in `migrate_recurrences` management command to convert all legacy RFC 2445 / RFC 5545 strings in your database to RFC 8984 JSCalendar JSON.
+Once `django-recur` is deployed, use the built-in `migrate_recurrences` management command to convert all legacy RFC 2445 / RFC 5545 strings in your database to RFC 8984 JSCalendar JSON.
 
 ### 1. Run a Dry Run with Audit Report
 
@@ -60,26 +60,15 @@ Example JSON output:
 {
   "target_format": "rfc8984",
   "dry_run": true,
-  "totals": {
-    "scanned": 142,
-    "converted": 140,
-    "already_migrated": 2,
-    "skipped_empty": 0,
-    "failed": 0
-  },
-  "fields": [
-    {
-      "model": "events.Event",
-      "field": "recurrences",
-      "scanned": 142,
-      "converted": 140,
-      "already_migrated": 2,
-      "skipped_empty": 0,
-      "failed": 0,
-      "issues": [],
-      "errors": []
-    }
-  ]
+  "fields_inspected": 1,
+  "scanned": 142,
+  "migrated": 140,
+  "already_target_format": 2,
+  "conversion_warnings": 0,
+  "warning_details": [],
+  "skipped_empty": 0,
+  "errors": 0,
+  "error_details": []
 }
 ```
 
@@ -92,7 +81,7 @@ Run the migration across all models (or target specific models/fields with `--mo
 python manage.py migrate_recurrences
 
 # Or migrate a specific app/model or field
-python manage.py migrate_recurrences --model events.Event --model events.Course.schedule
+python manage.py migrate_recurrences --model events.Course.schedule
 ```
 
 ### 3. Switch Default Storage Format to RFC 8984
@@ -107,22 +96,24 @@ RECURRENCE_STORAGE_FORMAT = "rfc8984"
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--model <label>` | All models | Restrict migration to `app_label.ModelName` or `app_label.ModelName.field_name`. Repeatable. |
+| `--model <label>` | All models | Restrict migration to `app_label.ModelName` or `app_label.ModelName.field_name`. |
 | `--dry-run` | `False` | Parse, convert, and validate all rows without writing changes to the database. |
-| `--target-format` | `"rfc8984"` | Target serialization format: `"rfc8984"` (JSCalendar JSON) or `"rfc5545"` (iCalendar text rollback). |
+| `--target-format` | `"rfc8984"` | Use `"rfc5545"` to roll back legacy text fields. A rollback across all models skips native JSON fields. Explicit rollback targets containing a native JSON field return an error. |
 | `--batch-size` | `500` | Number of rows processed per database batch. |
 | `--include-defaults` | `False` | Include default RFC 8984 values (`interval: 1`, `rscale: "gregorian"`, etc.) in JSON output. |
-| `--strict` | `False` | Abort with `CommandError` if any conversion warning or parse error occurs. |
+| `--strict` | `False` | Abort on a parse error or a lossy conversion. A failed field rolls back its own writes. |
 | `--json` | `False` | Output a structured JSON summary report. |
+
+The command skips lossy imports and reports them as errors. A rollback without `--strict` reports any lossy exports as warnings.
 
 ---
 
 ## Stage 3: Using `JSCalendarRecurrenceField` directly
 
-For new models—or when migrating existing text columns to native PostgreSQL/SQLite `JSONField`—use `dj_recurrence.fields.JSCalendarRecurrenceField`:
+For new models—or when migrating existing text columns to native PostgreSQL/SQLite `JSONField`—use `django_recur.fields.JSCalendarRecurrenceField`:
 
 ```python
-from dj_recurrence.fields import JSCalendarRecurrenceField
+from django_recur.fields import JSCalendarRecurrenceField
 
 
 class Event(models.Model):

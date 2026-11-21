@@ -15,15 +15,17 @@ from typing import Any
 from dateutil import tz
 from django.utils.timezone import get_current_timezone
 
-from dj_recurrence import exceptions
-from dj_recurrence.rfc8984 import (
+from django_recur import exceptions
+from django_recur.rfc8984 import (
     Frequency,
     JSCalendarRecurrence,
     NDay,
     RecurrenceOverride,
     RecurrenceRule,
     Skip,
+    calendar_time_zone,
     deserialize_tz_enabled,
+    format_local_datetime,
     to_utc,
 )
 
@@ -44,20 +46,20 @@ class FeatureMatrixEntry:
 FEATURE_MATRIX: tuple[FeatureMatrixEntry, ...] = (
     FeatureMatrixEntry(
         feature_id="start_dtstart",
-        rfc8984_property="start (LocalDateTime / UTCDateTime)",
+        rfc8984_property="start (LocalDateTime) and timeZone",
         rfc5545_property="DTSTART",
         rfc8984_implemented=True,
         rfc5545_implemented=True,
-        auto_mapping="lossless",
-        notes="Mapped bidirectionally between JSCalendar 'start' and iCalendar 'DTSTART'.",
+        auto_mapping="conditional",
+        notes="Supports IANA TZID, UTC and floating times. DATE values are promoted to midnight.",
     ),
     FeatureMatrixEntry(
         feature_id="end_dtend",
-        rfc8984_property="dtend / duration",
+        rfc8984_property="dtend (compatibility extension)",
         rfc5545_property="DTEND",
         rfc8984_implemented=True,
         rfc5545_implemented=True,
-        auto_mapping="lossless",
+        auto_mapping="conditional",
         notes="Mapped bidirectionally to preserve recurrence window bounds.",
     ),
     FeatureMatrixEntry(
@@ -261,9 +263,13 @@ def serialize_icalendar_dt(dt: datetime.datetime) -> str:
     )
 
 
-def deserialize_icalendar_dt(text: str) -> datetime.datetime:
+def deserialize_icalendar_dt(
+    text: str, *, time_zone: str | None = None, legacy: bool = True
+) -> datetime.datetime:
     """Parse an RFC 5545 / RFC 2445 ``DATE-TIME`` or ``DATE`` string."""
-    cleaned = text.strip()
+    cleaned = text.strip().upper()
+    if not re.fullmatch(r"[0-9]{8}(?:T[0-9]{6}Z?)?", cleaned):
+        raise exceptions.DeserializationError(f"malformed date-time: {text!r}")
     try:
         year, month, day = int(cleaned[:4]), int(cleaned[4:6]), int(cleaned[6:8])
     except (ValueError, IndexError) as exc:
@@ -281,7 +287,12 @@ def deserialize_icalendar_dt(text: str) -> datetime.datetime:
     else:
         hour, minute, second = 0, 0, 0
 
-    tzinfo = tz.UTC if "Z" in cleaned else get_current_timezone()
+    if cleaned.endswith("Z"):
+        tzinfo: datetime.tzinfo | None = tz.UTC
+    elif time_zone is not None:
+        tzinfo = calendar_time_zone(time_zone)
+    else:
+        tzinfo = get_current_timezone() if legacy else None
     try:
         dt = datetime.datetime(year, month, day, hour, minute, second, tzinfo=tzinfo)
     except ValueError as exc:
@@ -289,6 +300,8 @@ def deserialize_icalendar_dt(text: str) -> datetime.datetime:
 
     if deserialize_tz_enabled():
         return dt
+    if not legacy or time_zone is not None:
+        return dt.replace(tzinfo=None)
 
     local_dt = dt.astimezone(get_current_timezone())
     return datetime.datetime(
@@ -338,6 +351,30 @@ def convert_jscalendar_to_icalendar_with_report(
     except exceptions.ValidationError as exc:
         raise exceptions.SerializationError(str(exc.args[0])) from exc
 
+    zone_name = rec._serialization_time_zone()
+    zone = calendar_time_zone(zone_name) if zone_name is not None else None
+
+    def format_date(property_name: str, value: datetime.datetime) -> tuple[str, str]:
+        nonlocal lossless
+        if value.microsecond:
+            lossless = False
+            issues.append(
+                ConversionIssue(
+                    code="fractional_seconds_dropped",
+                    message=f"{property_name} cannot represent fractional seconds.",
+                    property_name=property_name,
+                )
+            )
+        wall_time = value if value.tzinfo is not None else value.replace(tzinfo=zone)
+        if property_name == "UNTIL" and zone is not None:
+            return property_name, serialize_icalendar_dt(wall_time)
+        if zone_name == "UTC":
+            return property_name, serialize_icalendar_dt(wall_time)
+        if zone_name is not None:
+            property_name = f"{property_name};TZID={zone_name}"
+        local = format_local_datetime(wall_time.replace(microsecond=0), zone)
+        return property_name, local.replace("-", "").replace(":", "")
+
     if len(rec.recurrence_rules) > 1:
         issues.append(
             ConversionIssue(
@@ -360,18 +397,17 @@ def convert_jscalendar_to_icalendar_with_report(
         nonlocal lossless
         values: list[tuple[str, list[str]]] = []
 
-        if rule.rscale != "gregorian":
-            if include_rscale:
-                values.append(("RSCALE", [rule.rscale.upper()]))
-            else:
-                lossless = False
-                issues.append(
-                    ConversionIssue(
-                        code="non_gregorian_rscale_dropped",
-                        message=f"Non-Gregorian rscale={rule.rscale!r} requires RFC 7529 RSCALE support.",
-                        property_name="rscale",
-                    )
+        if include_rscale and (rule.rscale != "gregorian" or rule.skip != Skip.OMIT.value):
+            values.append(("RSCALE", [rule.rscale.upper()]))
+        elif rule.rscale != "gregorian":
+            lossless = False
+            issues.append(
+                ConversionIssue(
+                    code="non_gregorian_rscale_dropped",
+                    message=f"Non-Gregorian rscale={rule.rscale!r} requires RFC 7529 RSCALE support.",
+                    property_name="rscale",
                 )
+            )
 
         values.append(("FREQ", [str(rule.frequency).upper()]))
 
@@ -408,7 +444,7 @@ def convert_jscalendar_to_icalendar_with_report(
         if rule.count is not None:
             values.append(("COUNT", [str(int(rule.count))]))
         elif rule.until is not None:
-            values.append(("UNTIL", [serialize_icalendar_dt(rule.until)]))
+            values.append(("UNTIL", [format_date("UNTIL", rule.until)[1]]))
 
         if rule.by_day:
             values.append(("BYDAY", [nd.to_icalendar() for nd in rule.by_day]))
@@ -439,9 +475,9 @@ def convert_jscalendar_to_icalendar_with_report(
 
     items: list[tuple[str, str]] = []
     if rec.dtstart:
-        items.append(("DTSTART", serialize_icalendar_dt(rec.dtstart)))
+        items.append(format_date("DTSTART", rec.dtstart))
     if rec.dtend:
-        items.append(("DTEND", serialize_icalendar_dt(rec.dtend)))
+        items.append(format_date("DTEND", rec.dtend))
 
     for rrule in rec.recurrence_rules:
         items.append(("RRULE", _serialize_rule(rrule)))
@@ -462,9 +498,9 @@ def convert_jscalendar_to_icalendar_with_report(
                 )
             )
         if ov.excluded:
-            items.append(("EXDATE", serialize_icalendar_dt(dt)))
+            items.append(format_date("EXDATE", dt))
         else:
-            items.append(("RDATE", serialize_icalendar_dt(dt)))
+            items.append(format_date("RDATE", dt))
 
     if strict and not lossless:
         msg = "; ".join(issue.message for issue in issues)
@@ -485,8 +521,8 @@ def jscalendar_to_icalendar(
 
 
 _ICAL_TOKEN_RE = re.compile(
-    r"(DTSTART|DTEND|RRULE|EXRULE|RDATE|EXDATE)[^:]*:(.*)",
-    re.MULTILINE,
+    r"^(DTSTART|DTEND|RRULE|EXRULE|RDATE|EXDATE)((?:;[^:\r\n]+)?):([^\r\n]*)",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 _BYPARAM_ICAL_TO_ATTR: dict[str, str] = {
@@ -504,6 +540,8 @@ _BYPARAM_ICAL_TO_ATTR: dict[str, str] = {
 def convert_icalendar_to_jscalendar_with_report(
     text: str,
     include_dtstart: bool = True,
+    *,
+    legacy: bool = False,
 ) -> ConversionReport:
     """
     Parse an RFC 5545 / RFC 2445 string into an RFC 8984 ``JSCalendarRecurrence``
@@ -519,12 +557,77 @@ def convert_icalendar_to_jscalendar_with_report(
     exrules: list[RecurrenceRule] = []
     overrides: dict[datetime.datetime, RecurrenceOverride] = {}
 
-    tokens = _ICAL_TOKEN_RE.findall(text)
+    unfolded = re.sub(r"\r?\n[ \t]", "", text)
+    tokens = _ICAL_TOKEN_RE.findall(unfolded)
     if not tokens and text:
         raise exceptions.DeserializationError("malformed data")
 
-    for label, param_text in tokens:
-        param_text = param_text.strip("\r")
+    def tzid(parameters: str) -> str | None:
+        match = re.search(r'(?:^|;)TZID=(?:"([^"]+)"|([^;]+))', parameters, re.IGNORECASE)
+        return (match[1] or match[2]) if match else None
+
+    time_zone = None
+    if not legacy:
+        date_properties = ("DTSTART", "DTEND", "RDATE", "EXDATE")
+        dated = [entry for entry in tokens if entry[0].upper() in date_properties]
+        if dated:
+            _, parameters, value = next(
+                (entry for entry in dated if entry[0].upper() == "DTSTART"), dated[0]
+            )
+            time_zone = tzid(parameters)
+            if time_zone is None and value.split(",")[0].strip().upper().endswith("Z"):
+                time_zone = "UTC"
+        elif any(
+            re.search(r"(?:^|;)UNTIL=[0-9]{8}T[0-9]{6}Z(?:;|$)", value, re.IGNORECASE)
+            for _, _, value in tokens
+        ):
+            time_zone = "UTC"
+    zone = calendar_time_zone(time_zone) if time_zone is not None else None
+    lossless = True
+
+    def parse_date(property_name: str, value: str, parameters: str = "") -> datetime.datetime:
+        nonlocal lossless
+        source_name = tzid(parameters)
+        utc = value.strip().upper().endswith("Z")
+        source = tz.UTC if utc else calendar_time_zone(source_name) if source_name else None
+        result = deserialize_icalendar_dt(value, time_zone=source_name, legacy=legacy)
+        if legacy:
+            return result
+        if len(value.strip()) == 8:
+            lossless = False
+            issues.append(
+                ConversionIssue(
+                    code="date_value_promoted",
+                    message=f"{property_name} DATE values were converted to midnight date-times.",
+                    property_name=property_name,
+                )
+            )
+        if (source is None) != (zone is None):
+            lossless = False
+            issues.append(
+                ConversionIssue(
+                    code="mixed_time_modes",
+                    message=f"{property_name} mixes floating and timezone-bound date-times.",
+                    property_name=property_name,
+                )
+            )
+        if source is not None and zone is not None:
+            adjusted = result.replace(tzinfo=source).astimezone(zone)
+            if adjusted.fold:
+                lossless = False
+                issues.append(
+                    ConversionIssue(
+                        code="ambiguous_local_time",
+                        message=f"{value} maps to the later instance of a repeated local time.",
+                        property_name=property_name,
+                    )
+                )
+            return adjusted if deserialize_tz_enabled() else adjusted.replace(tzinfo=None)
+        return result
+
+    for label, parameters, param_text in tokens:
+        label = label.upper()
+        param_text = param_text.strip()
         if not param_text:
             raise exceptions.DeserializationError(f"empty property: {label!r}")
 
@@ -587,7 +690,7 @@ def convert_icalendar_to_jscalendar_with_report(
                             f"bad count value: {value[0]!r}"
                         ) from exc
                 elif key == "UNTIL":
-                    kwargs["until"] = deserialize_icalendar_dt(value[0])
+                    kwargs["until"] = parse_date("UNTIL", value[0])
                 elif key == "BYDAY":
                     bydays: list[NDay] = []
                     for v in value:
@@ -646,16 +749,16 @@ def convert_icalendar_to_jscalendar_with_report(
                     )
                 )
         elif label == "DTSTART":
-            dtstart = deserialize_icalendar_dt(param_text)
+            dtstart = parse_date(label, param_text, parameters)
         elif label == "DTEND":
-            dtend = deserialize_icalendar_dt(param_text)
+            dtend = parse_date(label, param_text, parameters)
         elif label == "RDATE":
             for item in param_text.split(","):
-                dt_val = deserialize_icalendar_dt(item)
-                overrides[dt_val] = RecurrenceOverride(excluded=False)
+                dt_val = parse_date(label, item, parameters)
+                overrides.setdefault(dt_val, RecurrenceOverride(excluded=False))
         elif label == "EXDATE":
             for item in param_text.split(","):
-                dt_val = deserialize_icalendar_dt(item)
+                dt_val = parse_date(label, item, parameters)
                 overrides[dt_val] = RecurrenceOverride(excluded=True)
 
     rec = JSCalendarRecurrence(
@@ -664,9 +767,10 @@ def convert_icalendar_to_jscalendar_with_report(
         recurrence_rules=rrules,
         excluded_recurrence_rules=exrules,
         recurrence_overrides=overrides,
+        time_zone=time_zone,
         include_dtstart=include_dtstart,
     )
-    return ConversionReport(output=rec, lossless=True, issues=issues)
+    return ConversionReport(output=rec, lossless=lossless, issues=issues)
 
 
 def icalendar_to_jscalendar(text: str, include_dtstart: bool = True) -> JSCalendarRecurrence:

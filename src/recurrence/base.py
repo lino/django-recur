@@ -1,6 +1,6 @@
 """
 Drop-in compatibility implementation of ``recurrence.base`` backed internally by
-RFC 8984 (JSCalendar) via ``dj_recurrence``.
+RFC 8984 (JSCalendar) via ``django_recur``.
 """
 
 from __future__ import annotations
@@ -12,24 +12,27 @@ from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 import dateutil.rrule
+from dateutil import tz
+from django.utils.timezone import get_current_timezone
 
-from dj_recurrence.rfc5545 import (
+from django_recur.rfc5545 import (
     convert_icalendar_to_jscalendar_with_report,
     serialize_icalendar_dt,
 )
-from dj_recurrence.rfc8984 import (
+from django_recur.rfc8984 import (
     DayOfWeek,
     Frequency,
     JSCalendarRecurrence,
     NDay,
     RecurrenceOverride,
     RecurrenceRule,
+    deserialize_tz_enabled,
     normalize_offset_awareness,
 )
-from dj_recurrence.rfc8984 import (
+from django_recur.rfc8984 import (
     to_utc as to_utc,
 )
-from dj_recurrence.text import rule_to_text as _dj_rule_to_text
+from django_recur.text import rule_to_text as _dj_rule_to_text
 from recurrence import exceptions
 
 YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY, SECONDLY = range(7)
@@ -370,13 +373,31 @@ class Recurrence:
             if isinstance(data, JSCalendarRecurrence)
             else JSCalendarRecurrence.from_jscalendar(data, include_dtstart=include_dtstart)
         )
+
+        def legacy_datetime(value: datetime.datetime | None) -> Any:
+            if value is None or value.tzinfo is not None or isinstance(data, JSCalendarRecurrence):
+                return value
+            if js_rec.time_zone == "UTC":
+                utc_value = value.replace(tzinfo=tz.UTC)
+                if deserialize_tz_enabled():
+                    return utc_value
+                return utc_value.astimezone(get_current_timezone()).replace(tzinfo=None)
+            if js_rec.time_zone is None and deserialize_tz_enabled():
+                return value.replace(tzinfo=get_current_timezone())
+            return value
+
+        def legacy_rule(rule: RecurrenceRule) -> Rule:
+            result = Rule.from_jscalendar(rule)
+            result.until = legacy_datetime(result.until)
+            return result
+
         return cls(
-            dtstart=js_rec.dtstart,
-            dtend=js_rec.dtend,
-            rrules=[Rule.from_jscalendar(r) for r in js_rec.recurrence_rules],
-            exrules=[Rule.from_jscalendar(r) for r in js_rec.excluded_recurrence_rules],
-            rdates=js_rec.rdates,
-            exdates=js_rec.exdates,
+            dtstart=legacy_datetime(js_rec.dtstart),
+            dtend=legacy_datetime(js_rec.dtend),
+            rrules=[legacy_rule(r) for r in js_rec.recurrence_rules],
+            exrules=[legacy_rule(r) for r in js_rec.excluded_recurrence_rules],
+            rdates=[legacy_datetime(d) for d in js_rec.rdates],
+            exdates=[legacy_datetime(d) for d in js_rec.exdates],
             include_dtstart=js_rec.include_dtstart,
         )
 
@@ -629,8 +650,10 @@ def validate(rule_or_recurrence: Any) -> None:
                 validate_iterable_ints(rule, param, -31, 31)
             elif param == "byhour":
                 validate_iterable_ints(rule, param, 0, 23)
-            elif param in ("byminute", "bysecond"):
+            elif param == "byminute":
                 validate_iterable_ints(rule, param, 0, 59)
+            elif param == "bysecond":
+                validate_iterable_ints(rule, param, 0, 60)
             else:
                 validate_iterable_ints(rule, param)
 
@@ -764,7 +787,9 @@ def deserialize(
     if stripped.startswith("{"):
         return Recurrence.from_jscalendar(stripped, include_dtstart=include_dtstart)
 
-    report = convert_icalendar_to_jscalendar_with_report(text, include_dtstart=include_dtstart)
+    report = convert_icalendar_to_jscalendar_with_report(
+        text, include_dtstart=include_dtstart, legacy=True
+    )
     return Recurrence.from_jscalendar(report.output, include_dtstart=include_dtstart)
 
 

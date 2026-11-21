@@ -1,8 +1,8 @@
-"""Exceptions for the recurrence compatibility layer (re-exported from dj_recurrence)."""
+"""Exceptions for the recurrence compatibility layer (re-exported from django_recur)."""
 
 from __future__ import annotations
 
-from dj_recurrence.exceptions import (
+from django_recur.exceptions import (
     ConversionError,
     DeserializationError,
     RecurrenceError,

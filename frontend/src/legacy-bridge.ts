@@ -13,7 +13,7 @@ import {
   WEEKDAYS,
 } from "./codec";
 import type { DayOfWeekName, FrequencyName, JSCalendarRecurrenceRule } from "./types";
-import { DjRecurrenceWidget, registerRecurrenceWebComponent } from "./widget-element";
+import { DjangoRecurWidget, registerRecurrenceWebComponent } from "./widget-element";
 
 export function upgradeRecurrenceTextareas(root: ParentNode = document): void {
   registerRecurrenceWebComponent();
@@ -21,14 +21,14 @@ export function upgradeRecurrenceTextareas(root: ParentNode = document): void {
     'textarea.recurrence-widget:not([id*="__prefix__"])'
   );
   textareas.forEach((textarea) => {
-    if (textarea.closest("dj-recurrence-widget")) {
+    if (textarea.closest("django-recur-widget")) {
       return;
     }
     if (textarea.dataset.djUpgraded === "true") {
       return;
     }
     textarea.dataset.djUpgraded = "true";
-    const wrapper = document.createElement("dj-recurrence-widget") as DjRecurrenceWidget;
+    const wrapper = document.createElement("django-recur-widget") as DjangoRecurWidget;
     const outputFormat = textarea.getAttribute("data-output-format") || "rfc5545";
     wrapper.setAttribute("data-output-format", outputFormat);
     const parent = textarea.parentNode;

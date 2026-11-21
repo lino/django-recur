@@ -8,8 +8,8 @@ from datetime import datetime
 
 import pytest
 
-from dj_recurrence import exceptions
-from dj_recurrence.rfc8984 import (
+from django_recur import exceptions
+from django_recur.rfc8984 import (
     DayOfWeek,
     Frequency,
     JSCalendarRecurrence,
@@ -246,6 +246,56 @@ def test_rfc8984_skip_monthly_31st():
         datetime(2026, 3, 31, 9, 0, 0),
         datetime(2026, 4, 30, 9, 0, 0),
     ]
+
+
+@pytest.mark.parametrize(
+    ("start_year", "expected_years"),
+    [(1896, [1896, 1904]), (1996, [1996, 2000]), (2096, [2096, 2104])],
+)
+def test_gregorian_century_rules(start_year, expected_years):
+    schedule = JSCalendarRecurrence(
+        start=datetime(start_year, 2, 29, 9), recurrence_rules=[RecurrenceRule("yearly", count=2)]
+    )
+    assert [date.year for date in schedule.occurrences()] == expected_years
+
+
+def test_skip_implicit_month_day_is_sorted_and_repeatable():
+    schedule = JSCalendarRecurrence(
+        start=datetime(2026, 1, 31, 9),
+        recurrence_rules=[RecurrenceRule("monthly", skip=Skip.FORWARD, count=3)],
+    )
+    occurrences = schedule.occurrences()
+    expected = [datetime(2026, 1, 31, 9), datetime(2026, 3, 1, 9), datetime(2026, 3, 31, 9)]
+    assert list(occurrences) == expected
+    assert list(occurrences) == expected
+
+
+def test_skip_orders_candidates_before_count_and_stops_at_max_year():
+    rule = RecurrenceRule("monthly", skip=Skip.FORWARD, by_month_day=[31, 15], count=3)
+    assert rule.expand_with_skip(datetime(9999, 11, 1)) == [
+        datetime(9999, 11, 15),
+        datetime(9999, 12, 1),
+        datetime(9999, 12, 15),
+    ]
+    unbounded = RecurrenceRule("yearly", skip=Skip.FORWARD, by_month_day=[31])
+    assert unbounded.expand_with_skip(datetime(9999, 12, 31)) == [datetime(9999, 12, 31)]
+
+
+def test_skip_with_unsupported_filters_fails_instead_of_returning_wrong_times():
+    schedule = JSCalendarRecurrence(
+        start=datetime(2026, 1, 31, 9),
+        recurrence_rules=[RecurrenceRule("monthly", skip=Skip.BACKWARD, by_hour=[17])],
+    )
+    with pytest.raises(exceptions.UnsupportedFeatureError, match="month-day filters"):
+        list(schedule.occurrences())
+
+
+@pytest.mark.parametrize(
+    "date", ["1900-02-29T09:00:00", "2100-02-29T09:00:00", "2016-12-31T23:59:60"]
+)
+def test_unrepresentable_dates_are_rejected(date):
+    with pytest.raises(exceptions.DeserializationError, match="malformed date-time"):
+        JSCalendarRecurrence.from_jscalendar({"start": date})
 
 
 def test_jscalendar_recurrence_overrides_and_json_roundtrip():

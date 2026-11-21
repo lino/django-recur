@@ -1,15 +1,15 @@
 # Changelog
 
-All notable changes to `django-recurrence-jscalendar` (and historical `django-recurrence` releases prior to the fork) are documented in this file.
+All notable changes to `django-recur` (and historical `django-recurrence` releases prior to the fork) are documented in this file.
 
 ## 2.0.0 (2026-10-15)
 
-**Major Release — The RFC 8984 JSCalendar Reimplementation (`django-recurrence-jscalendar`)**
+**Major Release — The RFC 8984 JSCalendar Reimplementation (`django-recur`)**
 
-`django-recurrence-jscalendar` marks both continuity with `jazzband/django-recurrence` (maintained by Lino Helms) and a clean architectural modernization around **RFC 8984 (JSCalendar)**.
+`django-recur` marks both continuity with `jazzband/django-recurrence` (maintained by Lino Helms) and a clean architectural modernization around **RFC 8984 (JSCalendar)**.
 
 ### Highlights
-- **RFC 8984 (JSCalendar) Core Engine (`dj_recurrence`)**:
+- **RFC 8984 (JSCalendar) Core Engine (`django_recur`)**:
   - Strictly typed dataclasses (`RecurrenceRule`, `NDay`, `RecurrenceOverride`, `JSCalendarRecurrence`) and enums (`Frequency`, `DayOfWeek`, `Skip`).
   - Native support for `recurrenceRules`, `excludedRecurrenceRules`, `recurrenceOverrides` (inclusions, exclusions, and instance patch objects), `rscale`, `skip` (`omit`, `backward`, `forward`), `firstDayOfWeek`, and all `by*` rules.
   - Native `JSCalendarRecurrenceField` backed by Django's `models.JSONField`.
@@ -21,9 +21,9 @@ All notable changes to `django-recurrence-jscalendar` (and historical `django-re
   - `recurrence.Rule`, `recurrence.Recurrence`, and `recurrence.Weekday` are internally backed by the RFC 8984 engine (`to_jscalendar()`, `from_jscalendar()`).
   - `recurrence.deserialize()` and `RecurrenceField` transparently read both RFC 2445/5545 text and RFC 8984 JSON payloads.
 - **Database Migration Management Command**:
-  - Added `python manage.py migrate_recurrences` (available under both `dj_recurrence` and `recurrence`) to migrate existing `RecurrenceField` database columns and legacy `recurrence.models.Recurrence` relational tables to RFC 8984 JSCalendar JSON (`--dry-run`, `--model`, `--from-legacy-models`, `--target-format`).
-- **Modern TypeScript + Web Components Widget (`<dj-recurrence-widget>`)**:
-  - Replaced the legacy ES3/jQuery widget with a dependency-free Custom Element (`<dj-recurrence-widget>`) built with TypeScript and Vite.
+  - Added `python manage.py migrate_recurrences` (available under both `django_recur` and `recurrence`) to migrate existing `RecurrenceField` database columns and legacy `recurrence.models.Recurrence` relational tables to RFC 8984 JSCalendar JSON (`--dry-run`, `--model`, `--from-legacy-models`, `--target-format`).
+- **Modern TypeScript + Web Components Widget (`<django-recur-widget>`)**:
+  - Replaced the legacy ES3/jQuery widget with a dependency-free Custom Element (`<django-recur-widget>`) built with TypeScript and Vite.
   - Supports Django Admin light/dark mode (`prefers-color-scheme` and Django Admin theme variables), inline formsets via `MutationObserver`, live human-readable previews, and full legacy `window.recurrence` bridge compatibility.
 - **Modern Tooling, Docs & Governance**:
   - Switched build & dependency management to `uv` + `hatchling`, linting/formatting to `ruff`, type checking to `mypy`, and documentation to **Zensical** (`zensical.toml`) deployed to GitHub Pages.

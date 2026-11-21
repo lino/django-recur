@@ -2,40 +2,40 @@
 
 ## Requirements
 
-- **Python**: 3.11, 3.12, 3.13, or 3.14+
-- **Django**: 4.2 LTS, 5.1, or 5.2+
-- **python-dateutil**: >= 2.9.0
+- **Python**: 3.10 or later
+- **Django**: Install Django 6.1 on Python 3.12 or later, or Django 5.2 LTS on Python 3.10 or 3.11. The package also supports existing Django 5.0 and 5.1 deployments.
+- **python-dateutil**: 2.8.2 or later
 
 ## Installing the Package
 
-Install `django-recurrence-jscalendar` using `uv` (recommended) or `pip`:
+Install `django-recur` using `uv` (recommended) or `pip`:
 
 ```bash
-uv add django-recurrence-jscalendar
+uv add django-recur
 ```
 
 or with `pip`:
 
 ```bash
-pip install django-recurrence-jscalendar
+pip install django-recur
 ```
 
-> **Note:** If you are migrating from `django-recurrence`, uninstall the legacy package first so the `recurrence` module namespace is provided by `django-recurrence-jscalendar`:
+> **Note:** If you are migrating from `django-recurrence`, uninstall the legacy package first so the `recurrence` module namespace is provided by `django-recur`:
 >
 > ```bash
 > pip uninstall django-recurrence
-> pip install django-recurrence-jscalendar
+> pip install django-recur
 > ```
 
 ## Configuring `INSTALLED_APPS`
 
-Add both `recurrence` (for static assets, locales, and drop-in compatibility) and `dj_recurrence` (for the RFC 8984 management commands and native JSCalendar integration) to your `INSTALLED_APPS` in `settings.py`:
+Add both `recurrence` (for static assets, locales, and drop-in compatibility) and `django_recur` (for the RFC 8984 management commands and native JSCalendar integration) to your `INSTALLED_APPS` in `settings.py`:
 
 ```python
 INSTALLED_APPS = [
     # ...
     "recurrence",
-    "dj_recurrence",
+    "django_recur",
 ]
 ```
 
