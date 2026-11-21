@@ -1,6 +1,18 @@
 # Contributing to `django-recur`
 
-Contributions are welcome! Please read this guide to set up your local development environment and run the test suite.
+## Overview
+
+**What you will learn:**
+
+- How to set up a local Python and TypeScript development environment.
+- How to run tests, linters, type checks, and the Zensical documentation build.
+
+Contributions are welcome. Follow these steps to verify changes locally before opening a pull request.
+
+## Prerequisites
+
+- Python 3.10+ and [`uv`](https://docs.astral.sh/uv/).
+- Node.js 20+ and `npm` (for `<django-recur-widget>`).
 
 ## Development Setup
 
@@ -11,13 +23,13 @@ Contributions are welcome! Please read this guide to set up your local developme
    cd django-recur
    ```
 
-2. Install Python dependencies using [`uv`](https://docs.astral.sh/uv/):
+2. Install Python dependencies with `uv`:
 
    ```bash
    uv sync --all-extras --dev
    ```
 
-3. Install frontend dependencies for the `<django-recur-widget>` TypeScript pipeline:
+3. Install frontend dependencies for the TypeScript widget:
 
    ```bash
    cd frontend
@@ -27,36 +39,40 @@ Contributions are welcome! Please read this guide to set up your local developme
 
 ## Running Tests & Quality Checks
 
-Run the Python test suite with coverage:
+1. Run the Python test suite:
 
-```bash
-uv run pytest
-```
+   ```bash
+   uv run pytest
+   ```
 
-Run Ruff linting and formatting checks:
+2. Run Ruff lint and format checks:
 
-```bash
-uv run ruff check src tests
-uv run ruff format --check src tests
-```
+   ```bash
+   uv run ruff check src tests
+   uv run ruff format --check src tests
+   ```
 
-Run Mypy static type checking:
+3. Run Mypy static type checking:
 
-```bash
-uv run mypy src
-```
+   ```bash
+   uv run mypy src
+   ```
 
-Run frontend TypeScript type checking, Vitest tests, and Vite bundle build:
+4. Run frontend typechecking, Vitest tests, and the Vite build:
 
-```bash
-cd frontend
-npm run typecheck
-npm test
-npm run build
-```
+   ```bash
+   cd frontend
+   npm run typecheck
+   npm test
+   npm run build
+   ```
 
-Build the Zensical documentation locally:
+5. Build the Zensical documentation locally:
 
-```bash
-uv run zensical build --clean
-```
+   ```bash
+   uv run zensical build --clean
+   ```
+
+## Expected Outcome
+
+All Python tests, Ruff checks, Mypy checks, frontend Vitest tests, and the Zensical documentation build exit with status `0`.
